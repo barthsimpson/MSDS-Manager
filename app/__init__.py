@@ -1,0 +1,1 @@
+"""MSDS Manager application package."""

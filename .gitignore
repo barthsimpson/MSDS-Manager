@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.egg-info/
+*.db
+*.sqlite
+*.sqlite3
+/data/sds/
+/data/bhp_evidence/
