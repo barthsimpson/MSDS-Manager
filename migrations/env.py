@@ -1,7 +1,10 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import CheckConstraint, create_engine, pool
+
+from app.infrastructure.config import load_settings
+from app.infrastructure.db.models import Base
 
 
 config = context.config
@@ -9,16 +12,34 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = None
+settings = load_settings()
+target_metadata = Base.metadata
+
+type_bound_enum_checks = {
+    (table.name, constraint.name)
+    for table in target_metadata.tables.values()
+    for constraint in table.constraints
+    if isinstance(constraint, CheckConstraint)
+    and getattr(constraint, "_type_bound", False)
+}
+
+
+def include_object(object_, name, type_, reflected, compare_to):
+    """Ignore Alembic's false removals of reflected type-bound enum checks."""
+
+    if type_ != "check_constraint" or not reflected:
+        return True
+    table = getattr(object_, "table", None)
+    return (getattr(table, "name", None), name) not in type_bound_enum_checks
 
 
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=settings.database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -26,14 +47,14 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = create_engine(settings.database_url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+        )
 
         with context.begin_transaction():
             context.run_migrations()
