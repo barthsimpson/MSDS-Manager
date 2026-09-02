@@ -9,6 +9,7 @@ from app.domain.enums import (
     ProductUsageStatus,
     SafetyInformationStatus,
     SdsDocumentStatus,
+    UsageLocationStatus,
 )
 
 
@@ -19,6 +20,7 @@ from app.domain.enums import (
             ProductUsageStatus,
             ["PENDING_APPROVAL", "ACTIVE", "REJECTED", "INACTIVE"],
         ),
+        (UsageLocationStatus, ["ACTIVE", "INACTIVE"]),
         (SdsDocumentStatus, ["CURRENT", "ARCHIVED"]),
         (FileAvailabilityStatus, ["AVAILABLE", "MISSING"]),
         (BhpDecisionStatus, ["APPROVED", "REJECTED"]),
@@ -43,3 +45,7 @@ def test_bhp_decision_has_no_pending_status() -> None:
 def test_decision_record_supports_current_and_superseded() -> None:
     assert DecisionRecordStatus.CURRENT.value == "CURRENT"
     assert DecisionRecordStatus.SUPERSEDED.value == "SUPERSEDED"
+
+
+def test_usage_location_status_is_distinct_from_product_usage_status() -> None:
+    assert UsageLocationStatus is not ProductUsageStatus

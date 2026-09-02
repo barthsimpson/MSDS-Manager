@@ -8,7 +8,7 @@ from app.domain.models import ProductUsageLocation
 
 
 def sum_product_quantity(usages: Iterable[ProductUsageLocation]) -> Decimal:
-    """Sum quantities when every usage has exactly the same unit.
+    """Sum peak quantities when every usage has exactly the same peak unit.
 
     Unit names are compared as provided. No unit conversion is attempted.
     """
@@ -18,11 +18,11 @@ def sum_product_quantity(usages: Iterable[ProductUsageLocation]) -> Decimal:
 
     for usage in usages:
         if expected_unit is None:
-            expected_unit = usage.quantity_unit
-        elif usage.quantity_unit != expected_unit:
+            expected_unit = usage.peak_quantity_unit
+        elif usage.peak_quantity_unit != expected_unit:
             raise MixedQuantityUnitsError(
                 "Cannot sum product quantities expressed in different units."
             )
-        total += usage.quantity_value
+        total += usage.peak_quantity_value
 
     return total

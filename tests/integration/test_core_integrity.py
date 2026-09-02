@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from datetime import datetime, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -15,6 +16,7 @@ from app.domain.enums import (
     FileAvailabilityStatus,
     ProductUsageStatus,
     SdsDocumentStatus,
+    UsageLocationStatus,
 )
 from app.infrastructure.config import load_settings
 from app.infrastructure.db.models import Base
@@ -142,6 +144,68 @@ def constraint_name(error: IntegrityError) -> str | None:
     return getattr(getattr(error.orig, "diag", None), "constraint_name", None)
 
 
+def add_usage_location(connection: Connection, label: str) -> str:
+    location_id = identifier(f"location-{label}")
+    connection.execute(
+        insert(Base.metadata.tables["usage_locations"]),
+        {
+            "location_id": location_id,
+            "location_name": f"TASK-008 Location {label}",
+            "status": UsageLocationStatus.ACTIVE,
+        },
+    )
+    return location_id
+
+
+def test_usage_location_status_constraint(connection: Connection) -> None:
+    table = Base.metadata.tables["usage_locations"]
+
+    for status in UsageLocationStatus:
+        connection.execute(
+            insert(table),
+            {
+                "location_id": identifier(f"location-{status.value.lower()}"),
+                "location_name": f"TASK-009-ALIGN {status.value}",
+                "status": status,
+            },
+        )
+
+    with pytest.raises(IntegrityError) as error_info:
+        with connection.begin_nested():
+            connection.exec_driver_sql(
+                "INSERT INTO usage_locations (location_id, location_name, status) "
+                "VALUES (%s, %s, %s)",
+                (
+                    identifier("location-invalid"),
+                    "TASK-009-ALIGN INVALID",
+                    "ARCHIVED",
+                ),
+            )
+
+    assert constraint_name(error_info.value) == "usage_location_status_values"
+
+
+def add_product_usage(
+    connection: Connection,
+    product_id: str,
+    label: str,
+    peak_value: Decimal,
+    monthly_value: Decimal | None,
+    monthly_unit: str | None,
+) -> None:
+    connection.execute(
+        insert(Base.metadata.tables["product_usage_locations"]),
+        {
+            "product_id": product_id,
+            "location_id": add_usage_location(connection, label),
+            "peak_quantity_value": peak_value,
+            "peak_quantity_unit": "kg",
+            "monthly_consumption_value": monthly_value,
+            "monthly_consumption_unit": monthly_unit,
+        },
+    )
+
+
 def test_one_current_sds_per_product_and_archived_history(
     connection: Connection,
 ) -> None:
@@ -229,3 +293,64 @@ def test_decision_product_must_match_the_sds_product(
         "matching",
         DecisionRecordStatus.CURRENT,
     )
+
+
+def test_core_v1_1_product_usage_quantity_constraints(
+    connection: Connection,
+) -> None:
+    product_id = add_product(connection, "core-v1-1-quantities")
+
+    add_product_usage(connection, product_id, "peak-zero", Decimal("0"), None, None)
+    add_product_usage(
+        connection,
+        product_id,
+        "monthly-zero",
+        Decimal("1"),
+        Decimal("0"),
+        "l",
+    )
+
+    invalid_cases = [
+        (
+            "negative-peak",
+            Decimal("-0.01"),
+            None,
+            None,
+            "ck_product_usage_locations_peak_quantity_nonnegative",
+        ),
+        (
+            "negative-monthly",
+            Decimal("1"),
+            Decimal("-0.01"),
+            "kg",
+            "ck_product_usage_locations_monthly_consumption_nonnegative",
+        ),
+        (
+            "monthly-value-only",
+            Decimal("1"),
+            Decimal("1"),
+            None,
+            "ck_product_usage_locations_monthly_consumption_pair",
+        ),
+        (
+            "monthly-unit-only",
+            Decimal("1"),
+            None,
+            "kg",
+            "ck_product_usage_locations_monthly_consumption_pair",
+        ),
+    ]
+
+    for label, peak_value, monthly_value, monthly_unit, expected_constraint in invalid_cases:
+        with pytest.raises(IntegrityError) as error_info:
+            with connection.begin_nested():
+                add_product_usage(
+                    connection,
+                    product_id,
+                    label,
+                    peak_value,
+                    monthly_value,
+                    monthly_unit,
+                )
+
+        assert constraint_name(error_info.value) == expected_constraint

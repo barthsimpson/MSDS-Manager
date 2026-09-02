@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Numeric, String
+from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.domain.enums import ProductUsageStatus
+from app.domain.enums import ProductUsageStatus, UsageLocationStatus
 
 from .base import Base
 from .column_types import enum_column_type
@@ -37,6 +37,8 @@ class ProductModel(Base):
         enum_column_type(ProductUsageStatus, "product_usage_status_values"),
         nullable=False,
     )
+    waste_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    waste_code: Mapped[str | None] = mapped_column(String, nullable=True)
 
     manufacturer: Mapped[ManufacturerModel] = relationship(back_populates="products")
     product_usage_locations: Mapped[list[ProductUsageLocationModel]] = relationship(
@@ -55,7 +57,10 @@ class UsageLocationModel(Base):
 
     location_id: Mapped[str] = mapped_column(String, primary_key=True)
     location_name: Mapped[str] = mapped_column(String, nullable=False)
-    status: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[UsageLocationStatus] = mapped_column(
+        enum_column_type(UsageLocationStatus, "usage_location_status_values"),
+        nullable=False,
+    )
 
     product_usage_locations: Mapped[list[ProductUsageLocationModel]] = relationship(
         back_populates="location"
@@ -64,6 +69,24 @@ class UsageLocationModel(Base):
 
 class ProductUsageLocationModel(Base):
     __tablename__ = "product_usage_locations"
+    __table_args__ = (
+        CheckConstraint(
+            "peak_quantity_value >= 0",
+            name="ck_product_usage_locations_peak_quantity_nonnegative",
+        ),
+        CheckConstraint(
+            "monthly_consumption_value IS NULL "
+            "OR monthly_consumption_value >= 0",
+            name="ck_product_usage_locations_monthly_consumption_nonnegative",
+        ),
+        CheckConstraint(
+            "(monthly_consumption_value IS NULL "
+            "AND monthly_consumption_unit IS NULL) "
+            "OR (monthly_consumption_value IS NOT NULL "
+            "AND monthly_consumption_unit IS NOT NULL)",
+            name="ck_product_usage_locations_monthly_consumption_pair",
+        ),
+    )
 
     product_id: Mapped[str] = mapped_column(
         ForeignKey("products.product_id"), primary_key=True
@@ -71,8 +94,14 @@ class ProductUsageLocationModel(Base):
     location_id: Mapped[str] = mapped_column(
         ForeignKey("usage_locations.location_id"), primary_key=True
     )
-    quantity_value: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
-    quantity_unit: Mapped[str] = mapped_column(String, nullable=False)
+    peak_quantity_value: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
+    peak_quantity_unit: Mapped[str] = mapped_column(String, nullable=False)
+    monthly_consumption_value: Mapped[Decimal | None] = mapped_column(
+        Numeric, nullable=True
+    )
+    monthly_consumption_unit: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )
 
     product: Mapped[ProductModel] = relationship(
         back_populates="product_usage_locations"

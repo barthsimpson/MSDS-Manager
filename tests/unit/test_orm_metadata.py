@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 
 from sqlalchemy import Enum as SqlEnum
-from sqlalchemy import Float, Numeric
+from sqlalchemy import CheckConstraint, Float, Numeric
 
 from app.domain.enums import (
     BhpDecisionStatus,
@@ -13,6 +13,7 @@ from app.domain.enums import (
     ProductUsageStatus,
     SafetyInformationStatus,
     SdsDocumentStatus,
+    UsageLocationStatus,
 )
 from app.infrastructure.db.models import (
     Base,
@@ -90,11 +91,41 @@ def test_product_usage_location_is_the_decimal_association_table() -> None:
     assert {column.name for column in table.columns} == {
         "product_id",
         "location_id",
-        "quantity_value",
-        "quantity_unit",
+        "peak_quantity_value",
+        "peak_quantity_unit",
+        "monthly_consumption_value",
+        "monthly_consumption_unit",
     }
-    assert isinstance(table.c.quantity_value.type, Numeric)
-    assert not isinstance(table.c.quantity_value.type, Float)
+    assert isinstance(table.c.peak_quantity_value.type, Numeric)
+    assert isinstance(table.c.monthly_consumption_value.type, Numeric)
+    assert not isinstance(table.c.peak_quantity_value.type, Float)
+    assert not isinstance(table.c.monthly_consumption_value.type, Float)
+    assert not table.c.peak_quantity_value.nullable
+    assert not table.c.peak_quantity_unit.nullable
+    assert table.c.monthly_consumption_value.nullable
+    assert table.c.monthly_consumption_unit.nullable
+
+
+def test_product_usage_location_quantity_checks_are_present() -> None:
+    table = Base.metadata.tables["product_usage_locations"]
+    check_names = {
+        constraint.name
+        for constraint in table.constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+
+    assert check_names == {
+        "ck_product_usage_locations_peak_quantity_nonnegative",
+        "ck_product_usage_locations_monthly_consumption_nonnegative",
+        "ck_product_usage_locations_monthly_consumption_pair",
+    }
+
+
+def test_product_waste_fields_are_optional() -> None:
+    table = Base.metadata.tables["products"]
+
+    assert table.c.waste_type.nullable
+    assert table.c.waste_code.nullable
 
 
 def test_safety_profile_is_one_to_one_with_sds() -> None:
@@ -116,6 +147,7 @@ def test_decision_evidence_is_one_to_one_with_bhp_decision() -> None:
 def test_enum_columns_contain_only_approved_values() -> None:
     expected = {
         ("products", "usage_status"): ProductUsageStatus,
+        ("usage_locations", "status"): UsageLocationStatus,
         ("sds_documents", "document_status"): SdsDocumentStatus,
         ("sds_documents", "file_status"): FileAvailabilityStatus,
         ("bhp_decisions", "decision_status"): BhpDecisionStatus,
@@ -150,6 +182,7 @@ def test_enum_columns_contain_only_approved_values() -> None:
 
 def test_optional_columns_are_nullable() -> None:
     optional_columns = {
+        "products": {"waste_type", "waste_code"},
         "sds_documents": {"issue_date", "revision"},
         "bhp_decisions": {"notes"},
         "safety_profiles": {

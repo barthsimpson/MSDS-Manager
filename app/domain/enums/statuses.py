@@ -10,6 +10,11 @@ class ProductUsageStatus(StrEnum):
     INACTIVE = "INACTIVE"
 
 
+class UsageLocationStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
 class SdsDocumentStatus(StrEnum):
     CURRENT = "CURRENT"
     ARCHIVED = "ARCHIVED"

@@ -10,6 +10,7 @@ from app.domain.enums import (
     ProductUsageStatus,
     SafetyInformationStatus,
     SdsDocumentStatus,
+    UsageLocationStatus,
 )
 from app.domain.models import (
     BhpDecision,
@@ -61,15 +62,50 @@ def test_catalog_and_usage_models_can_be_created() -> None:
         use_description="Surface cleaning",
         use_restriction="Professional use",
         usage_status=ProductUsageStatus.PENDING_APPROVAL,
+        waste_type=None,
+        waste_code=None,
     )
-    location = UsageLocation("location-1", "Factory hall", "ACTIVE")
+    location = UsageLocation("location-1", "Factory hall")
     usage = ProductUsageLocation(
-        product.product_id, location.location_id, Decimal("2.50"), "kg"
+        product_id=product.product_id,
+        location_id=location.location_id,
+        peak_quantity_value=Decimal("2.50"),
+        peak_quantity_unit="kg",
     )
 
     assert product.manufacturer_id == manufacturer.manufacturer_id
-    assert usage.quantity_value == Decimal("2.50")
-    assert location.status == "ACTIVE"
+    assert product.waste_type is None
+    assert product.waste_code is None
+    assert usage.peak_quantity_value == Decimal("2.50")
+    assert location.status is UsageLocationStatus.ACTIVE
+
+
+def test_usage_location_can_be_deactivated_and_reactivated() -> None:
+    active_location = UsageLocation("location-1", "Factory hall")
+
+    inactive_location = active_location.deactivate()
+    reactivated_location = inactive_location.reactivate()
+
+    assert active_location.status is UsageLocationStatus.ACTIVE
+    assert inactive_location.status is UsageLocationStatus.INACTIVE
+    assert reactivated_location.status is UsageLocationStatus.ACTIVE
+
+
+def test_product_accepts_informational_waste_fields() -> None:
+    product = Product(
+        product_id="product-1",
+        product_name="Cleaner",
+        manufacturer_product_code="C-100",
+        manufacturer_id="manufacturer-1",
+        use_description="Surface cleaning",
+        use_restriction="Professional use",
+        usage_status=ProductUsageStatus.ACTIVE,
+        waste_type="Waste solvent",
+        waste_code="14 06 03*",
+    )
+
+    assert product.waste_type == "Waste solvent"
+    assert product.waste_code == "14 06 03*"
 
 
 def test_sds_issue_date_and_revision_are_optional() -> None:
