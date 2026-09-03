@@ -6,6 +6,10 @@ from app.presentation.streamlit.composition import (
     ShellInitializationError,
     build_shell_composition,
 )
+from app.presentation.streamlit.product_registry import (
+    render_product_registry,
+    render_usage_locations,
+)
 
 
 SECTIONS = ("Produkty", "Stanowiska")
@@ -24,11 +28,9 @@ def main() -> None:
     try:
         section = st.sidebar.radio("Sekcja", SECTIONS)
         if section == "Produkty":
-            st.header("Produkty")
-            st.info("Widok rejestru produktów zostanie udostępniony w kolejnym etapie.")
+            render_product_registry(composition)
         else:
-            st.header("Stanowiska")
-            st.info("Obsługa stanowisk zostanie udostępniona w kolejnym etapie.")
+            render_usage_locations(composition)
     finally:
         composition.dispose()
 

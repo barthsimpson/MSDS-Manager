@@ -33,7 +33,9 @@ def test_streamlit_shell_navigation_on_empty_database_is_read_only() -> None:
     assert app.exception == []
     assert app.title[0].value == "MSDS Manager"
     assert app.header[0].value == "Produkty"
+    assert app.info[0].value == "Brak produktów w rejestrze."
     assert app.radio[0].options == ["Produkty", "Stanowiska"]
+    assert app.selectbox == []
     assert app.button == []
     assert rows_before == 0
 
@@ -41,7 +43,7 @@ def test_streamlit_shell_navigation_on_empty_database_is_read_only() -> None:
 
     assert app.exception == []
     assert app.header[0].value == "Stanowiska"
-    assert app.button == []
+    assert any(button.label == "Dodaj lokalizację" for button in app.button)
     assert business_row_count() == rows_before
 
 
