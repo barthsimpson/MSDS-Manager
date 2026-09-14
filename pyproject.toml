@@ -10,6 +10,7 @@ dependencies = [
     "SQLAlchemy>=2,<3",
     "alembic",
     "psycopg",
+    "pypdf",
     "pytest",
     "streamlit",
 ]

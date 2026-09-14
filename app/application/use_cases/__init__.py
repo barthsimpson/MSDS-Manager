@@ -12,6 +12,9 @@ from .list_products import ListProducts
 from .list_usage_locations import ListUsageLocations
 from .update_product_administrative_data import UpdateProductAdministrativeData
 from .update_product_usage_location import UpdateProductUsageLocation
+from .prepare_sds_draft import PrepareSdsDraft
+from .accept_sds import AcceptSds
+from .register_bhp_decision import RegisterBhpDecision
 
 __all__ = [
     "AssignProductUsageLocation",
@@ -24,4 +27,7 @@ __all__ = [
     "ReactivateUsageLocation",
     "UpdateProductAdministrativeData",
     "UpdateProductUsageLocation",
+    "PrepareSdsDraft",
+    "AcceptSds",
+    "RegisterBhpDecision",
 ]

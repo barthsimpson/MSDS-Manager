@@ -29,6 +29,9 @@ EXPECTED_TABLES = {
     "products",
     "usage_locations",
     "product_usage_locations",
+    "product_history",
+    "usage_location_history",
+    "product_usage_location_history",
     "sds_documents",
     "bhp_decisions",
     "decision_evidence",
@@ -54,6 +57,9 @@ def test_every_table_has_the_expected_primary_key() -> None:
         "products": {"product_id"},
         "usage_locations": {"location_id"},
         "product_usage_locations": {"product_id", "location_id"},
+        "product_history": {"history_id"},
+        "usage_location_history": {"history_id"},
+        "product_usage_location_history": {"history_id"},
         "sds_documents": {"sds_id"},
         "bhp_decisions": {"decision_id"},
         "decision_evidence": {"evidence_id"},
@@ -71,6 +77,12 @@ def test_every_table_has_the_expected_primary_key() -> None:
 def test_foreign_keys_match_core_relations() -> None:
     assert foreign_key_targets("products") == {"manufacturers.manufacturer_id"}
     assert foreign_key_targets("product_usage_locations") == {
+        "products.product_id",
+        "usage_locations.location_id",
+    }
+    assert foreign_key_targets("product_history") == {"products.product_id"}
+    assert foreign_key_targets("usage_location_history") == {"usage_locations.location_id"}
+    assert foreign_key_targets("product_usage_location_history") == {
         "products.product_id",
         "usage_locations.location_id",
     }

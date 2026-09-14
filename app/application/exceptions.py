@@ -9,3 +9,31 @@ class EntityNotFoundError(LookupError):
 class InactiveUsageLocationError(ValueError):
     def __init__(self, location_id: str) -> None:
         super().__init__(f"Usage location is inactive: {location_id}")
+
+
+class SdsFileNotFoundError(FileNotFoundError):
+    pass
+
+
+class InvalidSdsFileTypeError(ValueError):
+    pass
+
+
+class SdsOutsideRootPathError(ValueError):
+    pass
+
+
+class UnsupportedSdsLanguageError(ValueError):
+    pass
+
+
+class SdsAcceptanceValidationError(ValueError):
+    pass
+
+
+class BhpDecisionValidationError(ValueError):
+    pass
+
+
+class InvalidEvidenceFileTypeError(ValueError):
+    pass

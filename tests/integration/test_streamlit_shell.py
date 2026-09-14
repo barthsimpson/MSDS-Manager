@@ -34,7 +34,12 @@ def test_streamlit_shell_navigation_on_empty_database_is_read_only() -> None:
     assert app.title[0].value == "MSDS Manager"
     assert app.header[0].value == "Produkty"
     assert app.info[0].value == "Brak produktów w rejestrze."
-    assert app.radio[0].options == ["Produkty", "Stanowiska"]
+    assert app.radio[0].options == [
+        "Produkty",
+        "Dodaj SDS",
+        "Decyzja BHP",
+        "Stanowiska",
+    ]
     assert app.selectbox == []
     assert app.button == []
     assert rows_before == 0

@@ -3,8 +3,11 @@
 from .base import Base
 from .catalog import (
     ManufacturerModel,
+    ProductHistoryModel,
     ProductModel,
+    ProductUsageLocationHistoryModel,
     ProductUsageLocationModel,
+    UsageLocationHistoryModel,
     UsageLocationModel,
 )
 from .documents import BhpDecisionModel, DecisionEvidenceModel, SdsDocumentModel
@@ -15,10 +18,13 @@ __all__ = [
     "BhpDecisionModel",
     "DecisionEvidenceModel",
     "ManufacturerModel",
+    "ProductHistoryModel",
     "ProductModel",
+    "ProductUsageLocationHistoryModel",
     "ProductUsageLocationModel",
     "SafetyProfileModel",
     "SdsComponentModel",
     "SdsDocumentModel",
+    "UsageLocationHistoryModel",
     "UsageLocationModel",
 ]

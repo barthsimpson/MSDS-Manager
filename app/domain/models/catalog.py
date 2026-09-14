@@ -1,7 +1,9 @@
 """Product catalog and factory usage domain models."""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timezone
 from decimal import Decimal
+from uuid import uuid4
 
 from app.domain.enums import ProductUsageStatus, UsageLocationStatus
 
@@ -67,3 +69,41 @@ class ProductUsageLocation:
                 raise TypeError("monthly_consumption_value must be a Decimal.")
             if self.monthly_consumption_value < 0:
                 raise ValueError("monthly_consumption_value cannot be negative.")
+
+
+@dataclass(frozen=True, slots=True)
+class ProductHistory:
+    product_id: str
+    usage_status: ProductUsageStatus
+    use_description: str
+    use_restriction: str
+    waste_type: str | None = None
+    waste_code: str | None = None
+    history_id: str = field(default_factory=lambda: uuid4().hex)
+    changed_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class UsageLocationHistory:
+    location_id: str
+    status: UsageLocationStatus
+    history_id: str = field(default_factory=lambda: uuid4().hex)
+    changed_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ProductUsageLocationHistory:
+    product_id: str
+    location_id: str
+    peak_quantity_value: Decimal
+    peak_quantity_unit: str
+    monthly_consumption_value: Decimal | None = None
+    monthly_consumption_unit: str | None = None
+    history_id: str = field(default_factory=lambda: uuid4().hex)
+    changed_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )

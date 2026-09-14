@@ -29,7 +29,12 @@ def test_streamlit_modules_are_importable_without_starting_composition(
         )
 
         assert callable(app_module.main)
-        assert app_module.SECTIONS == ("Produkty", "Stanowiska")
+        assert app_module.SECTIONS == (
+            "Produkty",
+            "Dodaj SDS",
+            "Decyzja BHP",
+            "Stanowiska",
+        )
 
     importlib.reload(app_module)
 

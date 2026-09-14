@@ -2,18 +2,24 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.dto import (
+    AcceptSdsInput,
     AssignProductUsageLocationInput,
     CreateUsageLocationInput,
     ProductDetails,
     ProductListItem,
     UpdateProductAdministrativeDataInput,
     UpdateProductUsageLocationInput,
+    BhpDecisionProduct,
+    CurrentBhpDecision,
+    RegisterBhpDecisionInput,
+    RegisterBhpDecisionResult,
 )
 from app.application.exceptions import EntityNotFoundError
 from app.application.use_cases import (
@@ -26,18 +32,30 @@ from app.application.use_cases import (
     ReactivateUsageLocation,
     UpdateProductAdministrativeData,
     UpdateProductUsageLocation,
+    AcceptSds,
+    PrepareSdsDraft,
+    RegisterBhpDecision,
 )
 from app.infrastructure.config import ConfigurationError, Settings, load_settings
-from app.infrastructure.db.repositories import SqlAlchemyProductRepository
 from app.infrastructure.db.repositories import (
+    SqlAlchemyProductHistoryRepository,
+    SqlAlchemyProductRepository,
+    SqlAlchemyProductUsageLocationHistoryRepository,
     SqlAlchemyProductUsageLocationRepository,
+    SqlAlchemyUsageLocationHistoryRepository,
     SqlAlchemyUsageLocationRepository,
+    SqlAlchemySdsAcceptanceRepository,
+    SqlAlchemyBhpDecisionRepository,
+    SqlAlchemyBhpDecisionQuery,
 )
 from app.infrastructure.db.session import (
     create_engine_from_settings,
     create_session_factory,
 )
 from app.infrastructure.db.transactions import PersistenceError, TransactionExecutor
+from app.infrastructure.filesystem.pdf_sds_extractor import PdfSdsExtractor
+from app.infrastructure.filesystem.sds_file_validator import SdsFileValidator
+from app.infrastructure.filesystem.bhp_evidence_validator import BhpEvidenceValidator
 
 
 INITIALIZATION_ERROR_MESSAGE = (
@@ -56,6 +74,59 @@ class ShellComposition:
     engine: Engine
     session_factory: sessionmaker[Session]
     products: tuple[ProductListItem, ...]
+    sds_root_path: Path
+    bhp_evidence_root_path: Path = Path(".")
+
+    def list_bhp_products(self) -> tuple[BhpDecisionProduct, ...]:
+        with self.session_factory() as session:
+            return SqlAlchemyBhpDecisionQuery(session).list_products()
+
+    def get_current_bhp_decision(self, sds_id: str) -> CurrentBhpDecision | None:
+        with self.session_factory() as session:
+            return SqlAlchemyBhpDecisionQuery(session).get_current_decision(sds_id)
+
+    def list_bhp_evidence_files(self) -> tuple[str, ...]:
+        allowed = {".msg", ".pdf", ".jpg", ".jpeg", ".png"}
+        return tuple(
+            sorted(
+                path.relative_to(self.bhp_evidence_root_path).as_posix()
+                for path in self.bhp_evidence_root_path.rglob("*")
+                if path.is_file() and path.suffix.lower() in allowed
+            )
+        )
+
+    def register_bhp_decision(
+        self, data: RegisterBhpDecisionInput
+    ) -> RegisterBhpDecisionResult:
+        return TransactionExecutor(self.session_factory).execute(
+            lambda session: RegisterBhpDecision(
+                BhpEvidenceValidator(self.bhp_evidence_root_path),
+                SqlAlchemyBhpDecisionRepository(session),
+            ).execute(data)
+        )
+
+    def list_sds_files(self) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                path.relative_to(self.sds_root_path).as_posix()
+                for path in self.sds_root_path.rglob("*.pdf")
+                if path.is_file()
+            )
+        )
+
+    def prepare_sds_draft(self, relative_path: str):
+        validator = SdsFileValidator(self.sds_root_path)
+        return PrepareSdsDraft(PdfSdsExtractor(), validator).execute(
+            validator.validate_relative(relative_path)
+        )
+
+    def accept_sds(self, data: AcceptSdsInput) -> str:
+        validator = SdsFileValidator(self.sds_root_path)
+        return TransactionExecutor(self.session_factory).execute(
+            lambda session: AcceptSds(
+                SqlAlchemySdsAcceptanceRepository(session), validator
+            ).execute(data)
+        )
 
     def get_product_details(self, product_id: str) -> ProductDetails:
         try:
@@ -86,7 +157,8 @@ class ShellComposition:
     ) -> None:
         self._execute_write(
             lambda session: UpdateProductAdministrativeData(
-                SqlAlchemyProductRepository(session)
+                SqlAlchemyProductRepository(session),
+                SqlAlchemyProductHistoryRepository(session),
             ).execute(data)
         )
 
@@ -101,7 +173,8 @@ class ShellComposition:
         use_case = ReactivateUsageLocation if active else DeactivateUsageLocation
         self._execute_write(
             lambda session: use_case(
-                SqlAlchemyUsageLocationRepository(session)
+                SqlAlchemyUsageLocationRepository(session),
+                SqlAlchemyUsageLocationHistoryRepository(session),
             ).execute(location_id)
         )
 
@@ -112,6 +185,7 @@ class ShellComposition:
             lambda session: AssignProductUsageLocation(
                 SqlAlchemyProductUsageLocationRepository(session),
                 SqlAlchemyUsageLocationRepository(session),
+                SqlAlchemyProductUsageLocationHistoryRepository(session),
             ).execute(data)
         )
 
@@ -120,7 +194,8 @@ class ShellComposition:
     ) -> None:
         self._execute_write(
             lambda session: UpdateProductUsageLocation(
-                SqlAlchemyProductUsageLocationRepository(session)
+                SqlAlchemyProductUsageLocationRepository(session),
+                SqlAlchemyProductUsageLocationHistoryRepository(session),
             ).execute(data)
         )
 
@@ -163,6 +238,8 @@ def build_shell_composition(
             engine=engine,
             session_factory=session_factory,
             products=tuple(products),
+            sds_root_path=settings.sds_root_path,
+            bhp_evidence_root_path=settings.bhp_evidence_root_path,
         )
     except (ConfigurationError, SQLAlchemyError, OSError, ImportError) as error:
         if engine is not None:
