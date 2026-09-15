@@ -37,3 +37,7 @@ class BhpDecisionValidationError(ValueError):
 
 class InvalidEvidenceFileTypeError(ValueError):
     pass
+
+
+class SupervisoryReadError(ValueError):
+    """Current Core data is inconsistent; the read must not choose a winner."""

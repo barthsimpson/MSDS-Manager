@@ -9,6 +9,7 @@ from .product_usage_location_history_repository import (
 from .product_usage_location_repository import ProductUsageLocationRepositoryPort
 from .usage_location_history_repository import UsageLocationHistoryRepositoryPort
 from .usage_location_repository import UsageLocationRepositoryPort
+from .supervisory_query import SupervisoryQueryPort
 from .sds_extractor import (
     SdsAcceptanceRepositoryPort,
     SdsExtractorPort,
@@ -24,6 +25,7 @@ __all__ = [
     "ProductUsageLocationRepositoryPort",
     "UsageLocationHistoryRepositoryPort",
     "UsageLocationRepositoryPort",
+    "SupervisoryQueryPort",
     "SdsExtractorPort",
     "SdsFileValidatorPort",
     "SdsAcceptanceRepositoryPort",

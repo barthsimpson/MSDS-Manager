@@ -10,6 +10,7 @@ from .get_product_details import GetProductDetails
 from .list_manufacturers import ListManufacturers
 from .list_products import ListProducts
 from .list_usage_locations import ListUsageLocations
+from .list_supervisory_products import ListSupervisoryProducts
 from .update_product_administrative_data import UpdateProductAdministrativeData
 from .update_product_usage_location import UpdateProductUsageLocation
 from .prepare_sds_draft import PrepareSdsDraft
@@ -23,6 +24,7 @@ __all__ = [
     "GetProductDetails",
     "ListManufacturers",
     "ListProducts",
+    "ListSupervisoryProducts",
     "ListUsageLocations",
     "ReactivateUsageLocation",
     "UpdateProductAdministrativeData",

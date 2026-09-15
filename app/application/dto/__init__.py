@@ -10,6 +10,7 @@ from .products import (
     ProductUsageLocationDetails,
     UpdateProductAdministrativeDataInput,
 )
+from .supervisory import SupervisoryProductRow
 from .usage_locations import CreateUsageLocationInput
 from .sds import (
     AcceptSdsInput,
@@ -42,4 +43,5 @@ __all__ = [
     "RegisterBhpDecisionResult",
     "BhpDecisionProduct",
     "CurrentBhpDecision",
+    "SupervisoryProductRow",
 ]

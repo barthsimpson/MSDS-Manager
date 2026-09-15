@@ -10,6 +10,7 @@ from .product_usage_location import SqlAlchemyProductUsageLocationRepository
 from .product_usage_location_history import (
     SqlAlchemyProductUsageLocationHistoryRepository,
 )
+from .supervisory_query import SqlAlchemySupervisoryQuery
 from .usage_location import SqlAlchemyUsageLocationRepository
 from .usage_location_history import SqlAlchemyUsageLocationHistoryRepository
 
@@ -22,6 +23,7 @@ __all__ = [
     "SqlAlchemySdsAcceptanceRepository",
     "SqlAlchemyProductUsageLocationHistoryRepository",
     "SqlAlchemyProductUsageLocationRepository",
+    "SqlAlchemySupervisoryQuery",
     "SqlAlchemyUsageLocationHistoryRepository",
     "SqlAlchemyUsageLocationRepository",
 ]
