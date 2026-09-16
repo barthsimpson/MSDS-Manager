@@ -20,6 +20,7 @@ from app.application.dto import (
     CurrentBhpDecision,
     RegisterBhpDecisionInput,
     RegisterBhpDecisionResult,
+    SupervisoryProductRow,
 )
 from app.application.exceptions import EntityNotFoundError
 from app.application.use_cases import (
@@ -35,6 +36,7 @@ from app.application.use_cases import (
     AcceptSds,
     PrepareSdsDraft,
     RegisterBhpDecision,
+    ListSupervisoryProducts,
 )
 from app.infrastructure.config import ConfigurationError, Settings, load_settings
 from app.infrastructure.db.repositories import (
@@ -47,6 +49,7 @@ from app.infrastructure.db.repositories import (
     SqlAlchemySdsAcceptanceRepository,
     SqlAlchemyBhpDecisionRepository,
     SqlAlchemyBhpDecisionQuery,
+    SqlAlchemySupervisoryQuery,
 )
 from app.infrastructure.db.session import (
     create_engine_from_settings,
@@ -76,6 +79,18 @@ class ShellComposition:
     products: tuple[ProductListItem, ...]
     sds_root_path: Path
     bhp_evidence_root_path: Path = Path(".")
+    settings: Settings | None = None
+
+    def list_supervisory_products(self) -> list[SupervisoryProductRow]:
+        if self.settings is None:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE)
+        try:
+            with self.session_factory() as session:
+                return ListSupervisoryProducts(
+                    SqlAlchemySupervisoryQuery(session, settings=self.settings)
+                ).execute()
+        except (SQLAlchemyError, OSError, ImportError) as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
 
     def list_bhp_products(self) -> tuple[BhpDecisionProduct, ...]:
         with self.session_factory() as session:
@@ -240,6 +255,7 @@ def build_shell_composition(
             products=tuple(products),
             sds_root_path=settings.sds_root_path,
             bhp_evidence_root_path=settings.bhp_evidence_root_path,
+            settings=settings,
         )
     except (ConfigurationError, SQLAlchemyError, OSError, ImportError) as error:
         if engine is not None:

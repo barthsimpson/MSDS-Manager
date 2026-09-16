@@ -25,7 +25,7 @@ def test_streamlit_modules_are_importable_without_starting_composition(
             composition_module, "build_shell_composition", forbidden_build
         )
         app_module = importlib.reload(
-            importlib.import_module("app.presentation.streamlit.app")
+            importlib.import_module("app.presentation.streamlit.main")
         )
 
         assert callable(app_module.main)
@@ -34,6 +34,7 @@ def test_streamlit_modules_are_importable_without_starting_composition(
             "Dodaj SDS",
             "Decyzja BHP",
             "Stanowiska",
+            "Widok nadzorczy",
         )
 
     importlib.reload(app_module)

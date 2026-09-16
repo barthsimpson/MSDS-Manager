@@ -7,7 +7,7 @@ from app.infrastructure.config import load_settings
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-APP_PATH = PROJECT_ROOT / "app" / "presentation" / "streamlit" / "app.py"
+APP_PATH = PROJECT_ROOT / "app" / "presentation" / "streamlit" / "main.py"
 
 
 def business_row_count() -> int:
@@ -39,6 +39,7 @@ def test_streamlit_shell_navigation_on_empty_database_is_read_only() -> None:
         "Dodaj SDS",
         "Decyzja BHP",
         "Stanowiska",
+        "Widok nadzorczy",
     ]
     assert app.selectbox == []
     assert app.button == []
@@ -49,6 +50,13 @@ def test_streamlit_shell_navigation_on_empty_database_is_read_only() -> None:
     assert app.exception == []
     assert app.header[0].value == "Stanowiska"
     assert any(button.label == "Dodaj lokalizację" for button in app.button)
+    assert business_row_count() == rows_before
+
+    app.radio[0].set_value("Widok nadzorczy").run(timeout=10)
+    assert app.exception == []
+    assert app.header[0].value == "Widok nadzorczy"
+    assert app.info[0].value == "Brak produktów do wyświetlenia."
+    assert app.button == []
     assert business_row_count() == rows_before
 
 

@@ -12,9 +12,10 @@ from app.presentation.streamlit.product_registry import (
 )
 from app.presentation.streamlit.add_sds import render_add_sds
 from app.presentation.streamlit.bhp_decision import render_bhp_decision
+from app.presentation.streamlit.supervisory import render_supervisory
 
 
-SECTIONS = ("Produkty", "Dodaj SDS", "Decyzja BHP", "Stanowiska")
+SECTIONS = ("Produkty", "Dodaj SDS", "Decyzja BHP", "Stanowiska", "Widok nadzorczy")
 
 
 def main() -> None:
@@ -35,6 +36,8 @@ def main() -> None:
             render_add_sds(composition)
         elif section == "Decyzja BHP":
             render_bhp_decision(composition)
+        elif section == "Widok nadzorczy":
+            render_supervisory(composition)
         else:
             render_usage_locations(composition)
     finally:

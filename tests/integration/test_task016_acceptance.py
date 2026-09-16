@@ -52,7 +52,7 @@ from app.presentation.streamlit.composition import build_shell_composition
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-APP_PATH = PROJECT_ROOT / "app" / "presentation" / "streamlit" / "app.py"
+APP_PATH = PROJECT_ROOT / "app" / "presentation" / "streamlit" / "main.py"
 
 
 @pytest.fixture(scope="module")
