@@ -9,12 +9,14 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.dto import (
+    AddSdsRevisionInput,
     AcceptSdsInput,
     AssignProductUsageLocationInput,
     CreateUsageLocationInput,
     ProductDetails,
     ProductListItem,
     UpdateProductAdministrativeDataInput,
+    UpdateProductIdentityInput,
     UpdateProductUsageLocationInput,
     BhpDecisionProduct,
     CurrentBhpDecision,
@@ -32,8 +34,10 @@ from app.application.use_cases import (
     ListUsageLocations,
     ReactivateUsageLocation,
     UpdateProductAdministrativeData,
+    UpdateProductIdentity,
     UpdateProductUsageLocation,
     AcceptSds,
+    AddSdsRevision,
     PrepareSdsDraft,
     RegisterBhpDecision,
     ListSupervisoryProducts,
@@ -143,6 +147,14 @@ class ShellComposition:
             ).execute(data)
         )
 
+    def accept_sds_revision(self, data: AddSdsRevisionInput) -> str:
+        validator = SdsFileValidator(self.sds_root_path)
+        return TransactionExecutor(self.session_factory).execute(
+            lambda session: AddSdsRevision(
+                SqlAlchemySdsAcceptanceRepository(session), validator
+            ).execute(data)
+        )
+
     def get_product_details(self, product_id: str) -> ProductDetails:
         try:
             with self.session_factory() as session:
@@ -174,6 +186,13 @@ class ShellComposition:
             lambda session: UpdateProductAdministrativeData(
                 SqlAlchemyProductRepository(session),
                 SqlAlchemyProductHistoryRepository(session),
+            ).execute(data)
+        )
+
+    def update_product_identity(self, data: UpdateProductIdentityInput) -> None:
+        self._execute_write(
+            lambda session: UpdateProductIdentity(
+                SqlAlchemyProductRepository(session)
             ).execute(data)
         )
 

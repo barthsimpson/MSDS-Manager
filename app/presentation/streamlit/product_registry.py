@@ -1,16 +1,19 @@
-"""Read-only Streamlit rendering for the Product Registry."""
+"""Streamlit rendering for the Product Registry."""
 
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 import streamlit as st
 
 from app.application.dto import (
+    AddSdsRevisionInput,
     AssignProductUsageLocationInput,
     CreateUsageLocationInput,
     ProductDetails,
     ProductListItem,
     ProductUsageLocationDetails,
     UpdateProductAdministrativeDataInput,
+    UpdateProductIdentityInput,
     UpdateProductUsageLocationInput,
 )
 from app.domain.enums import UsageLocationStatus
@@ -52,12 +55,56 @@ def _location_row(location: ProductUsageLocationDetails) -> dict[str, str]:
     }
 
 
+def _render_identity_edit(composition, details: ProductDetails) -> None:
+    active_key = f"identity-edit-active-{details.product_id}"
+    if st.button("Edytuj dane produktu", key=f"edit-product-{details.product_id}"):
+        st.session_state[active_key] = True
+    if not st.session_state.get(active_key):
+        return
+
+    st.subheader("Edycja danych produktu")
+    product_name = st.text_input(
+        "Nazwa produktu",
+        details.product_name,
+        key=f"edit-product-name-{details.product_id}",
+    )
+    manufacturer_product_code = st.text_input(
+        "Kod produktu producenta",
+        details.manufacturer_product_code,
+        key=f"edit-product-code-{details.product_id}",
+    )
+    manufacturer_name = st.text_input(
+        "Producent",
+        details.manufacturer_name,
+        key=f"edit-manufacturer-{details.product_id}",
+    )
+    save, cancel = st.columns(2)
+    if save.button("Zapisz zmiany", key=f"save-product-{details.product_id}"):
+        try:
+            composition.update_product_identity(
+                UpdateProductIdentityInput(
+                    product_id=details.product_id,
+                    product_name=product_name,
+                    manufacturer_product_code=manufacturer_product_code,
+                    manufacturer_name=manufacturer_name,
+                )
+            )
+            st.session_state.pop(active_key, None)
+            st.success("Dane produktu zapisane.")
+        except (ShellInitializationError, ValueError) as error:
+            st.error(str(error))
+    if cancel.button("Anuluj edycję", key=f"cancel-product-{details.product_id}"):
+        st.session_state.pop(active_key, None)
+        st.rerun()
+
+
 def _render_details(composition, details: ProductDetails) -> None:
     st.subheader("Szczegóły produktu")
     st.text(f"Nazwa produktu: {details.product_name}")
     st.text(f"Kod producenta: {details.manufacturer_product_code}")
     st.text(f"Producent: {details.manufacturer_name}")
     st.text(f"Status użytkowania: {details.usage_status.value}")
+    _render_identity_edit(composition, details)
 
     st.subheader("Dane administracyjne")
     use_description = st.text_input("Opis użycia", details.use_description)
@@ -84,6 +131,8 @@ def _render_details(composition, details: ProductDetails) -> None:
     st.text(f"Ograniczenia użycia: {details.use_restriction}")
     st.text(f"Typ odpadu: {_optional_text(details.waste_type)}")
     st.text(f"Kod odpadu: {_optional_text(details.waste_code)}")
+
+    _render_revision(composition, details)
 
     st.subheader("Miejsca stosowania")
     if not details.usage_locations:
@@ -165,6 +214,63 @@ def _render_product_operations(composition, details: ProductDetails) -> None:
                 st.success("Lokalizacja przypisana.")
             except (ShellInitializationError, ValueError) as error:
                 st.error(str(error))
+
+
+def _render_revision(composition, details: ProductDetails) -> None:
+    active_key = f"revision-active-{details.product_id}"
+    if st.button("Dodaj nową rewizję SDS", key=f"add-revision-{details.product_id}"):
+        st.session_state[active_key] = True
+    if not st.session_state.get(active_key):
+        return
+
+    st.subheader("Nowa rewizja SDS")
+    files = composition.list_sds_files()
+    if not files:
+        st.info("Brak plików PDF w SDS_ROOT_PATH.")
+        return
+    selected = st.selectbox(
+        "Plik nowej rewizji SDS",
+        files,
+        key=f"revision-file-{details.product_id}",
+    )
+    revision = st.text_input(
+        "Rewizja nowego SDS", key=f"revision-value-{details.product_id}"
+    )
+    has_issue_date = st.checkbox(
+        "Podaj datę wydania nowej rewizji",
+        key=f"revision-has-date-{details.product_id}",
+    )
+    issue_date = (
+        st.date_input(
+            "Data wydania nowej rewizji",
+            date.today(),
+            key=f"revision-date-{details.product_id}",
+        )
+        if has_issue_date
+        else None
+    )
+    save, cancel = st.columns(2)
+    if save.button("Zapisz nową rewizję", key=f"save-revision-{details.product_id}"):
+        try:
+            sds_id = composition.accept_sds_revision(
+                AddSdsRevisionInput(
+                    product_id=details.product_id,
+                    source_relative_path=selected,
+                    revision=revision or None,
+                    issue_date=issue_date,
+                )
+            )
+            st.session_state.pop(active_key, None)
+            st.success(
+                f"Nowa rewizja została zapisana. Produkt oczekuje na decyzję BHP. ({sds_id})"
+            )
+        except (ShellInitializationError, ValueError, OSError) as error:
+            st.error(str(error))
+    if cancel.button(
+        "Anuluj nową rewizję", key=f"cancel-revision-{details.product_id}"
+    ):
+        st.session_state.pop(active_key, None)
+        st.rerun()
 
 
 def render_product_registry(composition: ShellComposition) -> None:

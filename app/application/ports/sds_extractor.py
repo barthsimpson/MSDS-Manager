@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Protocol
 
-from app.application.dto import AcceptSdsInput, ExtractedSdsData
+from app.application.dto import AcceptSdsInput, AddSdsRevisionInput, ExtractedSdsData
 
 
 class SdsExtractorPort(Protocol):
@@ -22,3 +22,6 @@ class SdsFileValidatorPort(Protocol):
 class SdsAcceptanceRepositoryPort(Protocol):
     def accept(self, data: AcceptSdsInput) -> str:
         """Persist one already validated accepted SDS aggregate."""
+
+    def accept_revision(self, data: AddSdsRevisionInput) -> str:
+        """Persist a revision for an explicitly selected existing product."""

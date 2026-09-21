@@ -9,10 +9,12 @@ from .products import (
     ProductListItem,
     ProductUsageLocationDetails,
     UpdateProductAdministrativeDataInput,
+    UpdateProductIdentityInput,
 )
 from .supervisory import SupervisoryProductRow
 from .usage_locations import CreateUsageLocationInput
 from .sds import (
+    AddSdsRevisionInput,
     AcceptSdsInput,
     ExtractedSdsData,
     SdsComponentDraft,
@@ -33,8 +35,10 @@ __all__ = [
     "ProductListItem",
     "ProductUsageLocationDetails",
     "UpdateProductAdministrativeDataInput",
+    "UpdateProductIdentityInput",
     "UpdateProductUsageLocationInput",
     "AcceptSdsInput",
+    "AddSdsRevisionInput",
     "ExtractedSdsData",
     "SdsComponentDraft",
     "SdsDraft",

@@ -7,7 +7,7 @@ from uuid import uuid4
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.application.dto import AcceptSdsInput
+from app.application.dto import AcceptSdsInput, AddSdsRevisionInput
 from app.application.ports import SdsAcceptanceRepositoryPort
 from app.domain.enums import (
     FileAvailabilityStatus,
@@ -32,6 +32,17 @@ class SqlAlchemySdsAcceptanceRepository(SdsAcceptanceRepositoryPort):
     def accept(self, data: AcceptSdsInput) -> str:
         manufacturer = self._resolve_manufacturer(data.manufacturer_name)
         product = self._resolve_product(data, manufacturer.manufacturer_id)
+        return self._persist_sds(product, data)
+
+    def accept_revision(self, data: AddSdsRevisionInput) -> str:
+        product = self._session.get(ProductModel, data.product_id)
+        if product is None:
+            raise ValueError("Selected product does not exist.")
+        return self._persist_sds(product, data)
+
+    def _persist_sds(
+        self, product: ProductModel, data: AcceptSdsInput | AddSdsRevisionInput
+    ) -> str:
         now = datetime.now(timezone.utc)
         self._session.execute(
             update(SdsDocumentModel)
@@ -128,7 +139,9 @@ class SqlAlchemySdsAcceptanceRepository(SdsAcceptanceRepositoryPort):
 
     @staticmethod
     def _profile_model(
-        sds_id: str, data: AcceptSdsInput, approved_at: datetime
+        sds_id: str,
+        data: AcceptSdsInput | AddSdsRevisionInput,
+        approved_at: datetime,
     ) -> SafetyProfileModel:
         profile = data.safety_profile
         no_data = SafetyInformationStatus.NO_DATA

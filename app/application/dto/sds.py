@@ -76,5 +76,19 @@ class AcceptSdsInput(SdsDraft):
     """User-approved draft contract for the future Core write workflow."""
 
 
+@dataclass
+class AddSdsRevisionInput:
+    """User-approved SDS revision for an explicitly selected product."""
+
+    product_id: str
+    source_relative_path: str
+    issue_date: date | None = None
+    revision: str | None = None
+    safety_profile: SdsSafetyProfileDraft = field(
+        default_factory=SdsSafetyProfileDraft
+    )
+    components: list[SdsComponentDraft] = field(default_factory=list)
+
+
 # A validator may use this value to identify the configured deployment language.
 DEFAULT_SDS_LANGUAGE = "PL"

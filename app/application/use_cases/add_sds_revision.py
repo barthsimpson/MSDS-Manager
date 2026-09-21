@@ -1,17 +1,12 @@
-"""Application workflow for accepting one verified SDS draft."""
+"""Application workflow for adding a revision to an existing product."""
 
-from dataclasses import replace
-
-from app.application.dto import AcceptSdsInput
+from app.application.dto import AddSdsRevisionInput
 from app.application.exceptions import SdsAcceptanceValidationError
-from app.application.ports import (
-    SdsAcceptanceRepositoryPort,
-    SdsFileValidatorPort,
-)
+from app.application.ports import SdsAcceptanceRepositoryPort, SdsFileValidatorPort
 from app.domain.enums import SafetyInformationStatus
 
 
-class AcceptSds:
+class AddSdsRevision:
     def __init__(
         self,
         repository: SdsAcceptanceRepositoryPort,
@@ -20,10 +15,14 @@ class AcceptSds:
         self._repository = repository
         self._file_validator = file_validator
 
-    def execute(self, data: AcceptSdsInput) -> str:
+    def execute(self, data: AddSdsRevisionInput) -> str:
         self._validate(data)
-        accepted_data = replace(
-            data,
+        accepted_data = AddSdsRevisionInput(
+            product_id=data.product_id,
+            source_relative_path=data.source_relative_path,
+            issue_date=data.issue_date,
+            revision=data.revision,
+            safety_profile=data.safety_profile,
             components=[
                 component
                 for component in data.components
@@ -31,24 +30,15 @@ class AcceptSds:
             ],
         )
         self._file_validator.validate_relative(accepted_data.source_relative_path)
-        return self._repository.accept(accepted_data)
+        return self._repository.accept_revision(accepted_data)
 
     @staticmethod
-    def _validate(data: AcceptSdsInput) -> None:
-        required = {
-            "source_relative_path": data.source_relative_path,
-            "product_name": data.product_name,
-            "manufacturer_product_code": data.manufacturer_product_code,
-            "manufacturer_name": data.manufacturer_name,
-            "use_description": data.use_description,
-            "use_restriction": data.use_restriction,
-        }
-        missing = [name for name, value in required.items() if not value]
-        if missing:
-            raise SdsAcceptanceValidationError(
-                "Missing required SDS acceptance fields: " + ", ".join(missing)
-            )
-        profile = data.safety_profile
+    def _validate(data: AddSdsRevisionInput) -> None:
+        if not data.product_id:
+            raise SdsAcceptanceValidationError("Product is required.")
+        if not data.source_relative_path:
+            raise SdsAcceptanceValidationError("SDS source file is required.")
+
         status_fields = (
             "hazardous_classification_status",
             "pbt_status",
@@ -62,7 +52,7 @@ class AcceptSds:
             "respiratory_sensitization_status",
         )
         for field_name in status_fields:
-            value = getattr(profile, field_name)
+            value = getattr(data.safety_profile, field_name)
             if value is not None and not isinstance(value, SafetyInformationStatus):
                 raise SdsAcceptanceValidationError(
                     f"Invalid safety status: {field_name}"

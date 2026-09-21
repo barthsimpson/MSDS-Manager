@@ -2,12 +2,14 @@
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
+from uuid import uuid4
 
 from app.application.dto import (
     ProductDetails,
     ProductListItem,
     ProductUsageLocationDetails,
     UpdateProductAdministrativeDataInput,
+    UpdateProductIdentityInput,
 )
 from app.application.ports import ProductRepositoryPort
 from app.infrastructure.db.models import (
@@ -115,3 +117,29 @@ class SqlAlchemyProductRepository(ProductRepositoryPort):
             .returning(ProductModel.product_id)
         )
         return updated_id is not None
+
+    def update_identity(self, data: UpdateProductIdentityInput) -> bool:
+        product = self._session.get(ProductModel, data.product_id)
+        if product is None:
+            return False
+
+        manufacturers = self._session.scalars(
+            select(ManufacturerModel).where(
+                ManufacturerModel.manufacturer_name == data.manufacturer_name
+            )
+        ).all()
+        if len(manufacturers) > 1:
+            raise ValueError("Manufacturer identity is ambiguous.")
+        manufacturer = manufacturers[0] if manufacturers else ManufacturerModel(
+            manufacturer_id=uuid4().hex,
+            manufacturer_name=data.manufacturer_name,
+        )
+        if not manufacturers:
+            self._session.add(manufacturer)
+            self._session.flush()
+
+        product.product_name = data.product_name
+        product.manufacturer_product_code = data.manufacturer_product_code
+        product.manufacturer_id = manufacturer.manufacturer_id
+        self._session.flush()
+        return True

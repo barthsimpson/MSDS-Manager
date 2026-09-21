@@ -6,6 +6,7 @@ from app.application.dto import (
     ProductDetails,
     ProductListItem,
     UpdateProductAdministrativeDataInput,
+    UpdateProductIdentityInput,
 )
 
 
@@ -17,3 +18,5 @@ class ProductRepositoryPort(Protocol):
     def update_administrative_data(
         self, data: UpdateProductAdministrativeDataInput
     ) -> bool: ...
+
+    def update_identity(self, data: UpdateProductIdentityInput) -> bool: ...

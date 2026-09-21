@@ -43,3 +43,11 @@ class UpdateProductAdministrativeDataInput:
     use_restriction: str
     waste_type: str | None
     waste_code: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateProductIdentityInput:
+    product_id: str
+    product_name: str
+    manufacturer_product_code: str
+    manufacturer_name: str

@@ -122,6 +122,130 @@ def test_product_registry_uses_product_id_and_renders_all_location_values(
     assert "Status użytkowania: ACTIVE" in text_values
 
 
+def test_revision_action_passes_selected_product_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeStreamlit:
+        session_state = {}
+
+        @staticmethod
+        def button(label: str, **_kwargs) -> bool:
+            return label in {"Dodaj nową rewizję SDS", "Zapisz nową rewizję"}
+
+        @staticmethod
+        def subheader(_label: str) -> None:
+            pass
+
+        @staticmethod
+        def info(_message: str) -> None:
+            pass
+
+        @staticmethod
+        def selectbox(_label: str, options, **_kwargs):
+            return options[0]
+
+        @staticmethod
+        def text_input(_label: str, *_args, **_kwargs) -> str:
+            return "2.0"
+
+        @staticmethod
+        def checkbox(_label: str, **_kwargs) -> bool:
+            return False
+
+        @staticmethod
+        def columns(_count: int):
+            return (FakeStreamlit(), FakeStreamlit())
+
+        @staticmethod
+        def success(_message: str) -> None:
+            pass
+
+        @staticmethod
+        def error(_message: str) -> None:
+            raise AssertionError(_message)
+
+        @staticmethod
+        def rerun() -> None:
+            raise AssertionError("unexpected rerun")
+
+    class RevisionComposition:
+        def __init__(self) -> None:
+            self.accepted = None
+
+        @staticmethod
+        def list_sds_files() -> tuple[str, ...]:
+            return ("revisions/new.pdf",)
+
+        def accept_sds_revision(self, data) -> str:
+            self.accepted = data
+            return "new-sds-id"
+
+    composition = RevisionComposition()
+    monkeypatch.setattr(product_registry, "st", FakeStreamlit())
+
+    product = make_product("existing-product", "Manufacturer")
+    product_registry._render_revision(composition, make_details(product))
+
+    assert composition.accepted is not None
+    assert composition.accepted.product_id == "existing-product"
+    assert composition.accepted.source_relative_path == "revisions/new.pdf"
+
+
+def test_identity_edit_action_passes_selected_product_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeStreamlit:
+        session_state = {}
+
+        @staticmethod
+        def button(label: str, **_kwargs) -> bool:
+            return label in {"Edytuj dane produktu", "Zapisz zmiany"}
+
+        @staticmethod
+        def subheader(_label: str) -> None:
+            pass
+
+        @staticmethod
+        def text_input(label: str, *_args, **_kwargs) -> str:
+            return {
+                "Nazwa produktu": "Edited product",
+                "Kod produktu producenta": "EDITED-1",
+                "Producent": "Edited manufacturer",
+            }[label]
+
+        @staticmethod
+        def columns(_count: int):
+            return (FakeStreamlit(), FakeStreamlit())
+
+        @staticmethod
+        def success(_message: str) -> None:
+            pass
+
+        @staticmethod
+        def error(_message: str) -> None:
+            raise AssertionError(_message)
+
+        @staticmethod
+        def rerun() -> None:
+            raise AssertionError("unexpected rerun")
+
+    class IdentityComposition:
+        def __init__(self) -> None:
+            self.updated = None
+
+        def update_product_identity(self, data) -> None:
+            self.updated = data
+
+    composition = IdentityComposition()
+    monkeypatch.setattr(product_registry, "st", FakeStreamlit())
+
+    product_registry._render_identity_edit(
+        composition, make_details(make_product("existing-product", "Manufacturer"))
+    )
+
+    assert composition.updated is not None
+    assert composition.updated.product_id == "existing-product"
+    assert composition.updated.product_name == "Edited product"
+
+
 def assert_product_options(
     options: list[str], format_func, selected_product_id: str
 ) -> str:

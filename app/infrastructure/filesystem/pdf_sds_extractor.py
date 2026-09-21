@@ -30,6 +30,8 @@ class PdfSdsExtractor(SdsExtractorPort):
 
         try:
             reader = PdfReader(pdf_path)
+            if reader.is_encrypted and not reader.decrypt(""):
+                raise ValueError("SDS PDF requires a password")
             text = "\n".join(page.extract_text() or "" for page in reader.pages)
         except Exception as error:
             raise SdsPdfExtractionError(f"Could not read SDS PDF: {pdf_path}") from error
