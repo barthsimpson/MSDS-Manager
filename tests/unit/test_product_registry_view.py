@@ -246,6 +246,46 @@ def test_identity_edit_action_passes_selected_product_id(
     assert composition.updated.product_name == "Edited product"
 
 
+def test_delete_action_requires_explicit_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeStreamlit:
+        session_state = {}
+
+        @staticmethod
+        def button(label: str, **_kwargs) -> bool:
+            return label in {"Usuń produkt", "Usuń produkt trwale"}
+
+        @staticmethod
+        def warning(message: str) -> None:
+            assert "SDS: 0" in message
+            assert "decyzje BHP: 0" in message
+
+        @staticmethod
+        def checkbox(_label: str, **_kwargs) -> bool:
+            return False
+
+        @staticmethod
+        def error(message: str) -> None:
+            assert "potwierdzenie" in message
+
+    class DeleteComposition:
+        def __init__(self) -> None:
+            self.deleted = False
+
+        def delete_product(self, _product_id: str) -> None:
+            self.deleted = True
+
+    composition = DeleteComposition()
+    monkeypatch.setattr(product_registry, "st", FakeStreamlit())
+
+    product_registry._render_delete_product(
+        composition, make_details(make_product("existing-product", "Manufacturer"))
+    )
+
+    assert composition.deleted is False
+
+
 def assert_product_options(
     options: list[str], format_func, selected_product_id: str
 ) -> str:

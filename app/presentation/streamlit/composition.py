@@ -35,6 +35,7 @@ from app.application.use_cases import (
     ReactivateUsageLocation,
     UpdateProductAdministrativeData,
     UpdateProductIdentity,
+    DeleteProduct,
     UpdateProductUsageLocation,
     AcceptSds,
     AddSdsRevision,
@@ -194,6 +195,13 @@ class ShellComposition:
             lambda session: UpdateProductIdentity(
                 SqlAlchemyProductRepository(session)
             ).execute(data)
+        )
+
+    def delete_product(self, product_id: str) -> None:
+        self._execute_write(
+            lambda session: DeleteProduct(
+                SqlAlchemyProductRepository(session)
+            ).execute(product_id)
         )
 
     def create_usage_location(self, data: CreateUsageLocationInput) -> None:

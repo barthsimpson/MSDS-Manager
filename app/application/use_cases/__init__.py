@@ -13,6 +13,7 @@ from .list_usage_locations import ListUsageLocations
 from .list_supervisory_products import ListSupervisoryProducts
 from .update_product_administrative_data import UpdateProductAdministrativeData
 from .update_product_identity import UpdateProductIdentity
+from .delete_product import DeleteProduct
 from .update_product_usage_location import UpdateProductUsageLocation
 from .prepare_sds_draft import PrepareSdsDraft
 from .accept_sds import AcceptSds
@@ -31,6 +32,7 @@ __all__ = [
     "ReactivateUsageLocation",
     "UpdateProductAdministrativeData",
     "UpdateProductIdentity",
+    "DeleteProduct",
     "UpdateProductUsageLocation",
     "PrepareSdsDraft",
     "AcceptSds",

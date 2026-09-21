@@ -34,6 +34,8 @@ class ProductUsageLocationDetails:
 @dataclass(frozen=True, slots=True)
 class ProductDetails(ProductListItem):
     usage_locations: tuple[ProductUsageLocationDetails, ...]
+    sds_count: int = 0
+    bhp_decision_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)

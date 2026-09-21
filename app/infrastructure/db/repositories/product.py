@@ -1,6 +1,6 @@
 """SQLAlchemy adapter for existing-product application contracts."""
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 from uuid import uuid4
 
@@ -13,9 +13,16 @@ from app.application.dto import (
 )
 from app.application.ports import ProductRepositoryPort
 from app.infrastructure.db.models import (
+    BhpDecisionModel,
+    DecisionEvidenceModel,
     ManufacturerModel,
+    ProductHistoryModel,
     ProductModel,
+    ProductUsageLocationHistoryModel,
     ProductUsageLocationModel,
+    SafetyProfileModel,
+    SdsComponentModel,
+    SdsDocumentModel,
     UsageLocationModel,
 )
 
@@ -87,6 +94,16 @@ class SqlAlchemyProductRepository(ProductRepositoryPort):
             )
             for assignment, location in location_rows
         )
+        sds_count = self._session.scalar(
+            select(func.count()).select_from(SdsDocumentModel).where(
+                SdsDocumentModel.product_id == product_id
+            )
+        ) or 0
+        bhp_decision_count = self._session.scalar(
+            select(func.count()).select_from(BhpDecisionModel).where(
+                BhpDecisionModel.product_id == product_id
+            )
+        ) or 0
         item = _product_list_item(product, manufacturer)
         return ProductDetails(
             product_id=item.product_id,
@@ -100,6 +117,8 @@ class SqlAlchemyProductRepository(ProductRepositoryPort):
             waste_type=item.waste_type,
             waste_code=item.waste_code,
             usage_locations=locations,
+            sds_count=sds_count,
+            bhp_decision_count=bhp_decision_count,
         )
 
     def update_administrative_data(
@@ -141,5 +160,56 @@ class SqlAlchemyProductRepository(ProductRepositoryPort):
         product.product_name = data.product_name
         product.manufacturer_product_code = data.manufacturer_product_code
         product.manufacturer_id = manufacturer.manufacturer_id
+        self._session.flush()
+        return True
+
+    def delete_product(self, product_id: str) -> bool:
+        product = self._session.get(ProductModel, product_id)
+        if product is None:
+            return False
+
+        sds_ids = self._session.scalars(
+            select(SdsDocumentModel.sds_id).where(
+                SdsDocumentModel.product_id == product_id
+            )
+        ).all()
+        evidence_ids = self._session.scalars(
+            select(BhpDecisionModel.evidence_id).where(
+                BhpDecisionModel.product_id == product_id
+            )
+        ).all()
+        self._session.execute(
+            delete(BhpDecisionModel).where(BhpDecisionModel.product_id == product_id)
+        )
+        if evidence_ids:
+            self._session.execute(
+                delete(DecisionEvidenceModel).where(
+                    DecisionEvidenceModel.evidence_id.in_(evidence_ids)
+                )
+            )
+        if sds_ids:
+            self._session.execute(
+                delete(SdsComponentModel).where(SdsComponentModel.sds_id.in_(sds_ids))
+            )
+            self._session.execute(
+                delete(SafetyProfileModel).where(SafetyProfileModel.sds_id.in_(sds_ids))
+            )
+            self._session.execute(
+                delete(SdsDocumentModel).where(SdsDocumentModel.sds_id.in_(sds_ids))
+            )
+        self._session.execute(
+            delete(ProductUsageLocationHistoryModel).where(
+                ProductUsageLocationHistoryModel.product_id == product_id
+            )
+        )
+        self._session.execute(
+            delete(ProductUsageLocationModel).where(
+                ProductUsageLocationModel.product_id == product_id
+            )
+        )
+        self._session.execute(
+            delete(ProductHistoryModel).where(ProductHistoryModel.product_id == product_id)
+        )
+        self._session.delete(product)
         self._session.flush()
         return True

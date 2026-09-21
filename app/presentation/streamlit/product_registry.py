@@ -98,6 +98,39 @@ def _render_identity_edit(composition, details: ProductDetails) -> None:
         st.rerun()
 
 
+def _render_delete_product(composition, details: ProductDetails) -> None:
+    active_key = f"delete-product-active-{details.product_id}"
+    if st.button("Usuń produkt", key=f"delete-product-{details.product_id}"):
+        st.session_state[active_key] = True
+    if not st.session_state.get(active_key):
+        return
+
+    st.warning(
+        "Usunięcie produktu jest nieodwracalne w bazie danych. "
+        f"Produkt: {details.product_name}; producent: {details.manufacturer_name}; "
+        f"kod: {details.manufacturer_product_code}; SDS: {details.sds_count}; "
+        f"miejsca stosowania: {len(details.usage_locations)}; "
+        f"decyzje BHP: {details.bhp_decision_count}. "
+        "Pliki SDS i dowody BHP pozostaną na dysku."
+    )
+    confirmed = st.checkbox(
+        "Potwierdzam usunięcie tego produktu",
+        key=f"confirm-delete-product-{details.product_id}",
+    )
+    if st.button(
+        "Usuń produkt trwale", key=f"confirm-delete-product-action-{details.product_id}"
+    ):
+        if not confirmed:
+            st.error("Zaznacz potwierdzenie usunięcia produktu.")
+            return
+        try:
+            composition.delete_product(details.product_id)
+            st.session_state.pop(active_key, None)
+            st.success("Produkt został usunięty z bazy danych.")
+        except (ShellInitializationError, ValueError) as error:
+            st.error(str(error))
+
+
 def _render_details(composition, details: ProductDetails) -> None:
     st.subheader("Szczegóły produktu")
     st.text(f"Nazwa produktu: {details.product_name}")
@@ -105,6 +138,7 @@ def _render_details(composition, details: ProductDetails) -> None:
     st.text(f"Producent: {details.manufacturer_name}")
     st.text(f"Status użytkowania: {details.usage_status.value}")
     _render_identity_edit(composition, details)
+    _render_delete_product(composition, details)
 
     st.subheader("Dane administracyjne")
     use_description = st.text_input("Opis użycia", details.use_description)
