@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date, datetime, timezone
 
 from streamlit.testing.v1 import AppTest
@@ -28,8 +29,10 @@ class FakeComposition:
         self.evidence = evidence
         self.registered = []
         self.current_decision = None
+        self.read_count = 0
 
     def list_bhp_products(self):
+        self.read_count += 1
         return tuple(self.products)
 
     def list_bhp_evidence_files(self):
@@ -40,7 +43,7 @@ class FakeComposition:
 
     def register_bhp_decision(self, data):
         self.registered.append(data)
-        return RegisterBhpDecisionResult(
+        result = RegisterBhpDecisionResult(
             decision_id="decision-1",
             product_id=data.product_id,
             sds_id=data.sds_id,
@@ -53,6 +56,18 @@ class FakeComposition:
             registered_at=datetime.now(timezone.utc),
             evidence_relative_path=data.evidence_relative_path,
         )
+        self.products = [
+            replace(product, usage_status=result.product_usage_status)
+            if product.product_id == data.product_id else product
+            for product in self.products
+        ]
+        self.current_decision = CurrentBhpDecision(
+            decision_status=data.decision_status,
+            registered_at=result.registered_at,
+            notes=data.notes,
+            evidence_relative_path=data.evidence_relative_path,
+        )
+        return result
 
 
 def _app(composition):
@@ -74,7 +89,10 @@ def test_bhp_decision_approved_passes_notes_and_shows_active() -> None:
     assert len(composition.registered) == 1
     assert composition.registered[0].decision_status is BhpDecisionStatus.APPROVED
     assert composition.registered[0].notes == "Approved after review"
-    assert any("ACTIVE" in item.value for item in app.success)
+    assert composition.read_count >= 2
+    assert any("Status produktu: Aktywny" == item.value for item in app.text)
+    assert any("Decyzja: Dopuszczony" == item.value for item in app.text)
+    assert [item.value for item in app.success] == ["Decyzja BHP została zapisana."]
 
 
 def test_bhp_decision_rejected_shows_rejected() -> None:
@@ -84,7 +102,10 @@ def test_bhp_decision_rejected_shows_rejected() -> None:
     app.button(key="save-bhp-decision").click().run()
 
     assert composition.registered[0].decision_status is BhpDecisionStatus.REJECTED
-    assert any("REJECTED" in item.value for item in app.success)
+    assert composition.read_count >= 2
+    assert any("Status produktu: Odrzucony" == item.value for item in app.text)
+    assert any("Decyzja: Niedopuszczony" == item.value for item in app.text)
+    assert [item.value for item in app.success] == ["Decyzja BHP została zapisana."]
 
 
 def test_bhp_decision_without_evidence_does_not_register() -> None:
@@ -97,14 +118,28 @@ def test_bhp_decision_without_evidence_does_not_register() -> None:
     assert app.success == []
 
 
+def test_evidence_shows_filename_and_keeps_relative_path_for_write() -> None:
+    composition = FakeComposition(evidence=("archiwum/decision.pdf",))
+    app = _app(composition).run()
+
+    assert app.selectbox(key="bhp-evidence").options == ["decision.pdf"]
+    assert any(item.value == "Plik dostępny" for item in app.caption)
+    app.button(key="save-bhp-decision").click().run()
+
+    assert composition.registered[0].evidence_relative_path == "archiwum/decision.pdf"
+
+
 def test_bhp_decision_shows_existing_current_decision() -> None:
     composition = FakeComposition()
     composition.current_decision = CurrentBhpDecision(
         decision_status=BhpDecisionStatus.APPROVED,
         registered_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         notes="Existing notes",
-        evidence_relative_path="old.pdf",
+        evidence_relative_path="archiwum/old.pdf",
     )
     app = _app(composition).run()
 
-    assert any("Istniejąca decyzja CURRENT" in item.value for item in app.info)
+    assert any(item.value == "Decyzja: Dopuszczony" for item in app.text)
+    assert any(item.value == "Dowód: old.pdf" for item in app.text)
+    assert any(item.value == "Uwagi: Existing notes" for item in app.text)
+    assert any(item.value == "Brak pliku dowodu" for item in app.caption)

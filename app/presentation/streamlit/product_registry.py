@@ -1,7 +1,7 @@
 """Streamlit rendering for the Product Registry."""
 
-from datetime import date
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 import streamlit as st
 
@@ -12,10 +12,12 @@ from app.application.dto import (
     ProductDetails,
     ProductListItem,
     ProductUsageLocationDetails,
+    SupervisoryProductRow,
     UpdateProductAdministrativeDataInput,
     UpdateProductIdentityInput,
     UpdateProductUsageLocationInput,
 )
+from app.application.exceptions import SupervisoryReadError
 from app.domain.enums import UsageLocationStatus
 from app.presentation.streamlit.composition import (
     ShellComposition,
@@ -24,23 +26,49 @@ from app.presentation.streamlit.composition import (
 
 
 MISSING_VALUE = "Brak danych"
+STATUS_LABELS = {
+    "ACTIVE": "Aktywny",
+    "PENDING_APPROVAL": "Oczekuje na BHP",
+    "REJECTED": "Odrzucony",
+    "INACTIVE": "Nieaktywny",
+}
 
 
 def _optional_text(value: str | Decimal | None) -> str:
     return MISSING_VALUE if value is None else str(value)
 
 
-def _registry_row(product: ProductListItem) -> dict[str, str]:
+def _status_label(status) -> str:
+    return STATUS_LABELS.get(status.value, status.value)
+
+
+def _sds_label(row: SupervisoryProductRow | None) -> str:
+    if row is None:
+        return "—"
+    if row.current_sds_id is None:
+        return "Brak CURRENT SDS"
+    return "CURRENT" if row.current_sds_file_available else "Brak pliku SDS"
+
+
+def _bhp_label(row: SupervisoryProductRow | None) -> str:
+    if row is None:
+        return "—"
+    if row.current_bhp_decision_status is None:
+        return "Brak decyzji"
     return {
-        "ID produktu": product.product_id,
+        "APPROVED": "Zatwierdzona",
+        "REJECTED": "Odrzucona",
+    }.get(row.current_bhp_decision_status.value, row.current_bhp_decision_status.value)
+
+
+def _registry_row(product: ProductListItem, row: SupervisoryProductRow | None) -> dict[str, str]:
+    return {
         "Produkt": product.product_name,
         "Kod producenta": product.manufacturer_product_code,
         "Producent": product.manufacturer_name,
-        "Status": product.usage_status.value,
-        "Opis użycia": product.use_description,
-        "Ograniczenia": product.use_restriction,
-        "Typ odpadu": _optional_text(product.waste_type),
-        "Kod odpadu": _optional_text(product.waste_code),
+        "Status": _status_label(product.usage_status),
+        "SDS": _sds_label(row),
+        "BHP": _bhp_label(row),
     }
 
 
@@ -131,52 +159,63 @@ def _render_delete_product(composition, details: ProductDetails) -> None:
             st.error(str(error))
 
 
-def _render_details(composition, details: ProductDetails) -> None:
+def _render_details(
+    composition, details: ProductDetails, row: SupervisoryProductRow | None
+) -> None:
     st.subheader("Szczegóły produktu")
+    st.markdown("#### Tożsamość")
     st.text(f"Nazwa produktu: {details.product_name}")
     st.text(f"Kod producenta: {details.manufacturer_product_code}")
     st.text(f"Producent: {details.manufacturer_name}")
-    st.text(f"Status użytkowania: {details.usage_status.value}")
-    _render_identity_edit(composition, details)
-    _render_delete_product(composition, details)
+    st.text(f"Status użytkowania: {_status_label(details.usage_status)}")
+
+    st.markdown("#### SDS")
+    st.text(f"Stan: {_sds_label(row)}")
+    if row is not None and row.current_sds_id is not None:
+        st.text(f"Plik: {row.current_sds_filename or MISSING_VALUE}")
+        st.text(f"Data SDS: {row.current_sds_issue_date or MISSING_VALUE}")
+        st.text(f"Rewizja: {row.current_sds_revision or MISSING_VALUE}")
+
+    st.markdown("#### BHP")
+    st.text(f"Stan: {_bhp_label(row)}")
+
+    st.markdown("#### Miejsca stosowania")
+    if not details.usage_locations:
+        st.info("Brak przypisanych miejsc stosowania.")
+    else:
+        st.dataframe(
+            [_location_row(location) for location in details.usage_locations],
+            hide_index=True,
+            use_container_width=True,
+        )
+    with st.expander("Zarządzaj miejscami stosowania"):
+        _render_product_operations(composition, details)
 
     st.subheader("Dane administracyjne")
-    use_description = st.text_input("Opis użycia", details.use_description)
-    use_restriction = st.text_input("Ograniczenia użycia", details.use_restriction)
-    waste_type = st.text_input("Typ odpadu", details.waste_type or "")
-    waste_code = st.text_input("Kod odpadu", details.waste_code or "")
-    if st.button("Zapisz dane administracyjne", key=f"product-admin-{details.product_id}"):
-        try:
-            composition.update_product_administrative_data(
-                UpdateProductAdministrativeDataInput(
-                    product_id=details.product_id,
-                    use_description=use_description,
-                    use_restriction=use_restriction,
-                    waste_type=waste_type or None,
-                    waste_code=waste_code or None,
-                )
-            )
-            composition.get_product_details(details.product_id)
-            st.success("Dane administracyjne zapisane.")
-        except ShellInitializationError as error:
-            st.error(str(error))
-
     st.text(f"Opis użycia: {details.use_description}")
     st.text(f"Ograniczenia użycia: {details.use_restriction}")
     st.text(f"Typ odpadu: {_optional_text(details.waste_type)}")
     st.text(f"Kod odpadu: {_optional_text(details.waste_code)}")
-
-    _render_revision(composition, details)
-
-    st.subheader("Miejsca stosowania")
-    if not details.usage_locations:
-        st.info("Brak przypisanych miejsc stosowania.")
-        return
-    st.dataframe(
-        [_location_row(location) for location in details.usage_locations],
-        hide_index=True,
-        use_container_width=True,
-    )
+    with st.expander("Edytuj dane administracyjne"):
+        use_description = st.text_input("Opis użycia", details.use_description)
+        use_restriction = st.text_input("Ograniczenia użycia", details.use_restriction)
+        waste_type = st.text_input("Typ odpadu", details.waste_type or "")
+        waste_code = st.text_input("Kod odpadu", details.waste_code or "")
+        if st.button("Zapisz dane administracyjne", key=f"product-admin-{details.product_id}"):
+            try:
+                composition.update_product_administrative_data(
+                    UpdateProductAdministrativeDataInput(
+                        product_id=details.product_id,
+                        use_description=use_description,
+                        use_restriction=use_restriction,
+                        waste_type=waste_type or None,
+                        waste_code=waste_code or None,
+                    )
+                )
+                composition.get_product_details(details.product_id)
+                st.success("Dane administracyjne zapisane.")
+            except ShellInitializationError as error:
+                st.error(str(error))
 
 
 def _decimal(value: str, label: str) -> Decimal:
@@ -250,7 +289,9 @@ def _render_product_operations(composition, details: ProductDetails) -> None:
                 st.error(str(error))
 
 
-def _render_revision(composition, details: ProductDetails) -> None:
+def _render_revision(
+    composition, details: ProductDetails, current_sds: SupervisoryProductRow | None = None
+) -> None:
     active_key = f"revision-active-{details.product_id}"
     if st.button("Dodaj nową rewizję SDS", key=f"add-revision-{details.product_id}"):
         st.session_state[active_key] = True
@@ -258,35 +299,39 @@ def _render_revision(composition, details: ProductDetails) -> None:
         return
 
     st.subheader("Nowa rewizja SDS")
+    st.text(f"Produkt: {details.product_name}")
+    st.text(f"Producent: {details.manufacturer_name}")
+    st.text(f"Kod producenta: {details.manufacturer_product_code}")
+    if current_sds is not None and current_sds.current_sds_id is not None:
+        st.text(
+            f"Aktualny SDS: {current_sds.current_sds_filename or MISSING_VALUE}; "
+            f"rewizja: {current_sds.current_sds_revision or MISSING_VALUE}"
+        )
+    else:
+        st.text("Aktualny SDS: Brak danych")
     files = composition.list_sds_files()
     if not files:
-        st.info("Brak plików PDF w SDS_ROOT_PATH.")
+        st.info("Brak dostępnych plików PDF.")
         return
     selected = st.selectbox(
-        "Plik nowej rewizji SDS",
+        "Plik PDF *",
         files,
+        format_func=lambda path: Path(path).name,
         key=f"revision-file-{details.product_id}",
     )
-    revision = st.text_input(
-        "Rewizja nowego SDS", key=f"revision-value-{details.product_id}"
-    )
-    has_issue_date = st.checkbox(
-        "Podaj datę wydania nowej rewizji",
-        key=f"revision-has-date-{details.product_id}",
-    )
-    issue_date = (
-        st.date_input(
-            "Data wydania nowej rewizji",
-            date.today(),
-            key=f"revision-date-{details.product_id}",
+    revision_column, date_column = st.columns(2)
+    with revision_column:
+        revision = st.text_input(
+            "Rewizja", key=f"revision-value-{details.product_id}"
         )
-        if has_issue_date
-        else None
-    )
+    with date_column:
+        issue_date = st.date_input(
+            "Data dokumentu", value=None, key=f"revision-date-{details.product_id}"
+        )
     save, cancel = st.columns(2)
     if save.button("Zapisz nową rewizję", key=f"save-revision-{details.product_id}"):
         try:
-            sds_id = composition.accept_sds_revision(
+            composition.accept_sds_revision(
                 AddSdsRevisionInput(
                     product_id=details.product_id,
                     source_relative_path=selected,
@@ -295,9 +340,7 @@ def _render_revision(composition, details: ProductDetails) -> None:
                 )
             )
             st.session_state.pop(active_key, None)
-            st.success(
-                f"Nowa rewizja została zapisana. Produkt oczekuje na decyzję BHP. ({sds_id})"
-            )
+            st.success("Nowa rewizja została zapisana. Produkt oczekuje na decyzję BHP.")
         except (ShellInitializationError, ValueError, OSError) as error:
             st.error(str(error))
     if cancel.button(
@@ -314,30 +357,38 @@ def render_product_registry(composition: ShellComposition) -> None:
         st.info("Brak produktów w rejestrze.")
         return
 
-    st.dataframe(
-        [_registry_row(product) for product in products],
+    try:
+        supervisory_rows = {
+            row.product_id: row for row in composition.list_supervisory_products()
+        }
+    except (ShellInitializationError, SupervisoryReadError):
+        supervisory_rows = {}
+        st.warning("Nie udało się odczytać bieżącego stanu SDS i BHP.")
+
+    selection = st.dataframe(
+        [_registry_row(product, supervisory_rows.get(product.product_id)) for product in products],
         hide_index=True,
         use_container_width=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="product-registry",
     )
-    labels = {
-        product.product_id: (
-            f"{product.product_name} — {product.manufacturer_product_code} "
-            f"({product.manufacturer_name})"
-        )
-        for product in products
-    }
-    selected_product_id = st.selectbox(
-        "Wybierz produkt",
-        [product.product_id for product in products],
-        format_func=labels.__getitem__,
-    )
+    selected_rows = selection.selection.rows
+    if not selected_rows or selected_rows[0] >= len(products):
+        st.info("Wybierz produkt w tabeli, aby zobaczyć szczegóły i akcje.")
+        return
+    selected_product_id = products[selected_rows[0]].product_id
     try:
         details = composition.get_product_details(selected_product_id)
     except ShellInitializationError as error:
         st.error(str(error))
         return
-    _render_details(composition, details)
-    _render_product_operations(composition, details)
+    _render_details(composition, details, supervisory_rows.get(selected_product_id))
+    st.subheader("Akcje produktu")
+    _render_identity_edit(composition, details)
+    _render_revision(composition, details, supervisory_rows.get(selected_product_id))
+    st.divider()
+    _render_delete_product(composition, details)
 
 
 def render_usage_locations(composition: ShellComposition) -> None:

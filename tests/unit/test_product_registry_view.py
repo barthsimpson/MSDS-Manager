@@ -1,14 +1,18 @@
 from dataclasses import asdict, dataclass
+from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
+from streamlit.testing.v1 import AppTest
 
 from app.application.dto import (
     ProductDetails,
     ProductListItem,
     ProductUsageLocationDetails,
+    SupervisoryProductRow,
 )
-from app.domain.enums import ProductUsageStatus, UsageLocationStatus
+from app.domain.enums import BhpDecisionStatus, ProductUsageStatus, UsageLocationStatus
 from app.presentation.streamlit import product_registry
 
 
@@ -24,6 +28,9 @@ class FakeComposition:
         return self.details_by_id[product_id]
 
     def list_usage_locations(self):
+        return []
+
+    def list_supervisory_products(self):
         return []
 
 
@@ -68,6 +75,15 @@ def make_details(product: ProductListItem) -> ProductDetails:
     )
 
 
+def _app(composition: FakeComposition):
+    def render(current_composition):
+        from app.presentation.streamlit.product_registry import render_product_registry
+
+        render_product_registry(current_composition)
+
+    return AppTest.from_function(render, args=(composition,))
+
+
 def test_product_registry_uses_product_id_and_renders_all_location_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -79,28 +95,24 @@ def test_product_registry_uses_product_id_and_renders_all_location_values(
         selected_product_id=second.product_id,
         requested_ids=[],
     )
-    dataframes: list[list[dict[str, str]]] = []
-    text_values: list[str] = []
+    real_dataframe = product_registry.st.dataframe
 
-    def capture_dataframe(data, **_kwargs) -> None:
-        dataframes.append(data)
+    def select_second_row(data, **kwargs):
+        result = real_dataframe(data, **kwargs)
+        if kwargs.get("key") == "product-registry":
+            return SimpleNamespace(selection=SimpleNamespace(rows=[1]))
+        return result
 
-    monkeypatch.setattr(product_registry.st, "header", lambda _: None)
-    monkeypatch.setattr(product_registry.st, "subheader", lambda _: None)
-    monkeypatch.setattr(product_registry.st, "text", text_values.append)
-    monkeypatch.setattr(product_registry.st, "dataframe", capture_dataframe)
-    monkeypatch.setattr(
-        product_registry.st,
-        "selectbox",
-        lambda _label, options, format_func: (
-            assert_product_options(options, format_func, composition.selected_product_id)
-        ),
-    )
+    monkeypatch.setattr(product_registry.st, "dataframe", select_second_row)
+    app = _app(composition).run()
 
-    product_registry.render_product_registry(composition)
-
+    assert app.exception == []
     assert composition.requested_ids == ["product-2"]
-    assert dataframes[1] == [
+    assert app.dataframe[0].value.columns.tolist() == [
+        "Produkt", "Kod producenta", "Producent", "Status", "SDS", "BHP"
+    ]
+    assert "product_id" not in app.dataframe[0].value.columns
+    assert app.dataframe[1].value.to_dict("records") == [
         {
             "Lokalizacja": "Linia A",
             "Status lokalizacji": "ACTIVE",
@@ -118,13 +130,80 @@ def test_product_registry_uses_product_id_and_renders_all_location_values(
             "Monthly jednostka": "kg/month",
         },
     ]
-    assert "Producent: Manufacturer B" in text_values
-    assert "Status użytkowania: ACTIVE" in text_values
+    assert any(item.value == "Producent: Manufacturer B" for item in app.text)
+    assert any(item.value == "Status użytkowania: Aktywny" for item in app.text)
+    assert {"Edytuj dane produktu", "Dodaj nową rewizję SDS", "Usuń produkt"}.issubset(
+        {button.label for button in app.button}
+    )
 
 
-def test_revision_action_passes_selected_product_id(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_registry_empty_and_no_selection_have_controlled_states() -> None:
+    empty = FakeComposition((), {}, "", [])
+    app = _app(empty).run()
+    assert app.exception == []
+    assert app.info[0].value == "Brak produktów w rejestrze."
+    assert not app.dataframe
+
+    product = make_product("product-1", "Manufacturer")
+    composition = FakeComposition((product,), {}, "", [])
+    app = _app(composition).run()
+    assert app.exception == []
+    assert app.info[0].value.startswith("Wybierz produkt w tabeli")
+    assert composition.requested_ids == []
+
+
+def test_registry_presents_existing_sds_bhp_and_preserves_domain_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    product = make_product("product-1", "Manufacturer")
+    row = SupervisoryProductRow(
+        product_id=product.product_id,
+        product_name=product.product_name,
+        manufacturer_name=product.manufacturer_name,
+        manufacturer_product_code=product.manufacturer_product_code,
+        usage_status=product.usage_status,
+        use_description=product.use_description,
+        use_restriction=product.use_restriction,
+        usage_locations=(),
+        current_sds_id="sds-id",
+        current_sds_filename="current.pdf",
+        current_sds_issue_date=None,
+        current_sds_revision="2",
+        current_sds_file_available=True,
+        current_bhp_decision_id="decision-id",
+        current_bhp_decision_status=BhpDecisionStatus.APPROVED,
+        current_bhp_registered_at=None,
+        current_bhp_notes=None,
+        current_bhp_evidence_relative_path=None,
+        current_bhp_evidence_available=False,
+    )
+    composition = FakeComposition((product,), {}, "", [])
+    monkeypatch.setattr(composition, "list_supervisory_products", lambda: [row])
+    app = _app(composition).run()
+
+    assert app.exception == []
+    assert app.dataframe[0].value.to_dict("records") == [{
+        "Produkt": "Solvent", "Kod producenta": "CODE-product-1",
+        "Producent": "Manufacturer", "Status": "Aktywny",
+        "SDS": "CURRENT", "BHP": "Zatwierdzona",
+    }]
+    assert product.usage_status is ProductUsageStatus.ACTIVE
+
+
+@pytest.mark.parametrize("document_date", [None, date(2026, 2, 3)])
+def test_revision_action_passes_selected_product_id(
+    monkeypatch: pytest.MonkeyPatch, document_date: date | None
+) -> None:
     class FakeStreamlit:
         session_state = {}
+        messages = []
+        shown_text = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
 
         @staticmethod
         def button(label: str, **_kwargs) -> bool:
@@ -133,6 +212,10 @@ def test_revision_action_passes_selected_product_id(monkeypatch: pytest.MonkeyPa
         @staticmethod
         def subheader(_label: str) -> None:
             pass
+
+        @classmethod
+        def text(cls, value: str) -> None:
+            cls.shown_text.append(value)
 
         @staticmethod
         def info(_message: str) -> None:
@@ -147,16 +230,17 @@ def test_revision_action_passes_selected_product_id(monkeypatch: pytest.MonkeyPa
             return "2.0"
 
         @staticmethod
-        def checkbox(_label: str, **_kwargs) -> bool:
-            return False
+        def date_input(_label: str, **kwargs) -> date | None:
+            assert kwargs["value"] is None
+            return document_date
 
         @staticmethod
         def columns(_count: int):
             return (FakeStreamlit(), FakeStreamlit())
 
-        @staticmethod
-        def success(_message: str) -> None:
-            pass
+        @classmethod
+        def success(cls, message: str) -> None:
+            cls.messages.append(message)
 
         @staticmethod
         def error(_message: str) -> None:
@@ -182,11 +266,21 @@ def test_revision_action_passes_selected_product_id(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(product_registry, "st", FakeStreamlit())
 
     product = make_product("existing-product", "Manufacturer")
-    product_registry._render_revision(composition, make_details(product))
+    current_sds = SimpleNamespace(
+        current_sds_id="sds-1", current_sds_filename="current.pdf",
+        current_sds_revision="1",
+    )
+    product_registry._render_revision(composition, make_details(product), current_sds)
 
     assert composition.accepted is not None
     assert composition.accepted.product_id == "existing-product"
     assert composition.accepted.source_relative_path == "revisions/new.pdf"
+    assert composition.accepted.issue_date == document_date
+    assert "Produkt: Solvent" in FakeStreamlit.shown_text
+    assert "Aktualny SDS: current.pdf; rewizja: 1" in FakeStreamlit.shown_text
+    assert FakeStreamlit.messages == [
+        "Nowa rewizja została zapisana. Produkt oczekuje na decyzję BHP."
+    ]
 
 
 def test_identity_edit_action_passes_selected_product_id(
@@ -284,11 +378,3 @@ def test_delete_action_requires_explicit_confirmation(
     )
 
     assert composition.deleted is False
-
-
-def assert_product_options(
-    options: list[str], format_func, selected_product_id: str
-) -> str:
-    assert options == ["product-1", "product-2"]
-    assert format_func("product-1").startswith("Solvent")
-    return selected_product_id

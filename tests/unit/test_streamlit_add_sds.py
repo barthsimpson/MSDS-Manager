@@ -49,13 +49,24 @@ def test_add_sds_reads_and_accepts_manual_correction() -> None:
     app.button(key="read-sds").click().run()
     assert composition.prepared == ["fixture.pdf"]
     assert app.text_input(key="sds-product-name").value == "Parsed product"
+    assert [item.value for item in app.subheader] == ["Dokument SDS", "Produkt"]
+    assert {item.label for item in app.expander} == {
+        "Dane bezpieczeństwa — opcjonalne", "Składniki — opcjonalne"
+    }
+    assert {item.label for item in app.text_input if item.label.endswith("*")} == {
+        "Nazwa produktu *", "Kod producenta *", "Producent *",
+        "Opis zastosowania *", "Ograniczenia zastosowania *",
+    }
+    assert any(item.value == "* pole wymagane" for item in app.caption)
 
     app.text_input(key="sds-product-name").set_value("Corrected product")
     app.button(key="accept-sds").click().run()
 
     assert len(composition.accepted) == 1
     assert composition.accepted[0].product_name == "Corrected product"
-    assert any("SDS został zapisany" in item.value for item in app.success)
+    assert [item.value for item in app.success] == [
+        "SDS został zapisany. Produkt oczekuje na decyzję BHP."
+    ]
     assert "add_sds_draft" not in app.session_state
 
 
@@ -68,3 +79,24 @@ def test_add_sds_cancel_clears_draft_without_accept() -> None:
 
     assert composition.accepted == []
     assert "add_sds_draft" not in app.session_state
+
+
+def test_add_sds_manual_fallback_keeps_unknown_date_empty() -> None:
+    composition = FakeComposition()
+    app = _app(composition).run()
+
+    app.button(key="manual-sds").click().run()
+    assert composition.prepared == []
+    assert app.date_input(key="sds-issue-date").value is None
+
+    app.text_input(key="sds-product-name").set_value("Manual product")
+    app.text_input(key="sds-product-code").set_value("M-1")
+    app.text_input(key="sds-manufacturer").set_value("Manual manufacturer")
+    app.text_input(key="sds-use-description").set_value("Cleaning")
+    app.text_input(key="sds-use-restriction").set_value("Ventilation")
+    app.button(key="accept-sds").click().run()
+
+    assert app.exception == []
+    assert len(composition.accepted) == 1
+    assert composition.accepted[0].issue_date is None
+    assert composition.accepted[0].source_relative_path == "fixture.pdf"

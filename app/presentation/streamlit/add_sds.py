@@ -1,10 +1,10 @@
 """Streamlit view for preparing and accepting an SDS draft."""
 
-from datetime import date
+from pathlib import Path
 
 import streamlit as st
 
-from app.application.dto import AcceptSdsInput, SdsComponentDraft, SdsSafetyProfileDraft
+from app.application.dto import AcceptSdsInput, SdsComponentDraft, SdsDraft, SdsSafetyProfileDraft
 from app.domain.enums import SafetyInformationStatus
 from app.presentation.streamlit.composition import ShellComposition, ShellInitializationError
 
@@ -29,7 +29,7 @@ def _lines_input(label: str, values: list[str], key: str) -> list[str]:
 
 
 def _render_profile(profile: SdsSafetyProfileDraft) -> SdsSafetyProfileDraft:
-    st.subheader("SAFETY_PROFILE")
+    st.markdown("Dane bezpieczeństwa")
     profile.product_definition = st.text_input(
         "Definicja produktu", profile.product_definition or "", key="sds-product-definition"
     ) or None
@@ -71,7 +71,7 @@ def _render_profile(profile: SdsSafetyProfileDraft) -> SdsSafetyProfileDraft:
 
 
 def _render_components(components: list[SdsComponentDraft]) -> list[SdsComponentDraft]:
-    st.subheader("SDS_COMPONENTS")
+    st.markdown("Składniki")
     updated: list[SdsComponentDraft] = []
     for index, component in enumerate(components):
         with st.container(border=True):
@@ -110,34 +110,54 @@ def _render_components(components: list[SdsComponentDraft]) -> list[SdsComponent
 
 def _render_draft(composition: ShellComposition) -> None:
     draft = st.session_state[DRAFT_KEY]
-    st.caption(f"Plik: {draft.source_relative_path}")
-    draft.product_name = st.text_input("Nazwa produktu", draft.product_name or "", key="sds-product-name") or None
-    draft.manufacturer_product_code = st.text_input(
-        "Kod produktu producenta", draft.manufacturer_product_code or "", key="sds-product-code"
-    ) or None
+    st.subheader("Dokument SDS")
+    st.caption(f"Plik: {Path(draft.source_relative_path).name}")
+    document_date, document_revision = st.columns(2)
+    with document_date:
+        draft.issue_date = st.date_input(
+            "Data dokumentu", value=draft.issue_date, key="sds-issue-date"
+        )
+    with document_revision:
+        draft.revision = st.text_input(
+            "Rewizja", draft.revision or "", key="sds-revision"
+        ) or None
+
+    st.subheader("Produkt")
+    st.caption("* pole wymagane")
+    name_column, code_column = st.columns(2)
+    with name_column:
+        draft.product_name = st.text_input(
+            "Nazwa produktu *", draft.product_name or "", key="sds-product-name"
+        ) or None
+    with code_column:
+        draft.manufacturer_product_code = st.text_input(
+            "Kod producenta *", draft.manufacturer_product_code or "", key="sds-product-code"
+        ) or None
     draft.manufacturer_name = st.text_input(
-        "Producent", draft.manufacturer_name or "", key="sds-manufacturer"
+        "Producent *", draft.manufacturer_name or "", key="sds-manufacturer"
     ) or None
-    draft.use_description = st.text_input(
-        "Opis zastosowania", draft.use_description or "", key="sds-use-description"
-    ) or None
-    draft.use_restriction = st.text_input(
-        "Ograniczenie zastosowania", draft.use_restriction or "", key="sds-use-restriction"
-    ) or None
-    draft.revision = st.text_input("Rewizja", draft.revision or "", key="sds-revision") or None
-    has_issue_date = st.checkbox("Podaj datę wydania", value=draft.issue_date is not None, key="sds-has-issue-date")
-    if has_issue_date:
-        draft.issue_date = st.date_input("Data wydania", draft.issue_date or date.today(), key="sds-issue-date")
-    else:
-        draft.issue_date = None
-    draft.safety_profile = _render_profile(draft.safety_profile)
-    draft.components = _render_components(draft.components)
+    use_column, restriction_column = st.columns(2)
+    with use_column:
+        draft.use_description = st.text_input(
+            "Opis zastosowania *", draft.use_description or "", key="sds-use-description"
+        ) or None
+    with restriction_column:
+        draft.use_restriction = st.text_input(
+            "Ograniczenia zastosowania *",
+            draft.use_restriction or "",
+            key="sds-use-restriction",
+        ) or None
+
+    with st.expander("Dane bezpieczeństwa — opcjonalne"):
+        draft.safety_profile = _render_profile(draft.safety_profile)
+    with st.expander("Składniki — opcjonalne"):
+        draft.components = _render_components(draft.components)
     save, cancel = st.columns(2)
     if save.button("Zapisz / Akceptuj", key="accept-sds"):
         try:
-            sds_id = composition.accept_sds(AcceptSdsInput(**vars(draft)))
+            composition.accept_sds(AcceptSdsInput(**vars(draft)))
             del st.session_state[DRAFT_KEY]
-            st.success(f"SDS został zapisany. Produkt oczekuje na decyzję BHP. ({sds_id})")
+            st.success("SDS został zapisany. Produkt oczekuje na decyzję BHP.")
         except (ShellInitializationError, ValueError, OSError) as error:
             st.error(str(error))
     if cancel.button("Anuluj", key="cancel-sds"):
@@ -147,16 +167,26 @@ def _render_draft(composition: ShellComposition) -> None:
 
 def render_add_sds(composition: ShellComposition) -> None:
     st.header("Dodaj SDS")
+    if DRAFT_KEY in st.session_state:
+        _render_draft(composition)
+        return
+    st.subheader("Dokument SDS")
     files = composition.list_sds_files()
     if not files:
-        st.info("Brak plików PDF w SDS_ROOT_PATH.")
+        st.info("Brak dostępnych plików PDF.")
         return
-    selected = st.selectbox("Plik SDS", files, key="sds-selected-file")
-    if DRAFT_KEY not in st.session_state and st.button("Odczytaj dane", key="read-sds"):
+    st.caption("* pole wymagane")
+    selected = st.selectbox(
+        "Plik PDF *", files, format_func=lambda path: Path(path).name,
+        key="sds-selected-file",
+    )
+    read_column, manual_column = st.columns(2)
+    if read_column.button("Odczytaj dane", key="read-sds"):
         try:
             st.session_state[DRAFT_KEY] = composition.prepare_sds_draft(selected)
             st.rerun()
         except (ShellInitializationError, ValueError, OSError) as error:
             st.error(str(error))
-    if DRAFT_KEY in st.session_state:
-        _render_draft(composition)
+    if manual_column.button("Wypełnij ręcznie", key="manual-sds"):
+        st.session_state[DRAFT_KEY] = SdsDraft(source_relative_path=selected)
+        st.rerun()

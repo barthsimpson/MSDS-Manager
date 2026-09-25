@@ -19,7 +19,7 @@ SECTIONS = ("Produkty", "Dodaj SDS", "Decyzja BHP", "Stanowiska", "Widok nadzorc
 
 
 def main() -> None:
-    st.set_page_config(page_title="MSDS Manager", page_icon="📋")
+    st.set_page_config(page_title="MSDS Manager", page_icon="📋", layout="wide")
     st.title("MSDS Manager")
 
     try:
