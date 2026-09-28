@@ -38,7 +38,9 @@ from app.infrastructure.db.repositories import SqlAlchemyProductRepository
 from app.infrastructure.db.session import create_engine_from_settings, create_session_factory
 
 
-def test_delete_product_removes_owned_records_and_preserves_shared_data() -> None:
+def test_delete_product_removes_owned_records_and_preserves_shared_data(
+    tmp_path: Path,
+) -> None:
     settings = load_settings()
     engine = create_engine_from_settings(settings)
     session_factory = create_session_factory(engine)
@@ -51,8 +53,18 @@ def test_delete_product_removes_owned_records_and_preserves_shared_data() -> Non
     component_id = f"patch008-component-{suffix}"
     evidence_id = f"patch008-evidence-{suffix}"
     decision_id = f"patch008-decision-{suffix}"
-    source_name = "Cx80 XBRAKE CLEANER rew03 15.01.2025.pdf"
-    evidence_name = "Zrzut ekranu 2026-09-21 093145.png"
+    source_name = "patch008-source.pdf"
+    evidence_name = "patch008-evidence.png"
+    sds_root = tmp_path / "sds"
+    evidence_root = tmp_path / "evidence"
+    sds_root.mkdir()
+    (evidence_root / "patch008").mkdir(parents=True)
+    source_path = sds_root / source_name
+    evidence_path = evidence_root / "patch008" / evidence_name
+    source_path.write_bytes(b"%PDF-1.4\nsource fixture\n")
+    evidence_path.write_bytes(b"image fixture")
+    source_bytes = source_path.read_bytes()
+    evidence_bytes = evidence_path.read_bytes()
     now = datetime.now(timezone.utc)
 
     try:
@@ -183,8 +195,8 @@ def test_delete_product_removes_owned_records_and_preserves_shared_data() -> Non
             assert session.get(ManufacturerModel, manufacturer_id) is not None
             assert session.get(UsageLocationModel, location_id) is not None
             assert session.get(ProductUsageLocationModel, (other_product_id, location_id)) is not None
-            assert (settings.sds_root_path / source_name).is_file()
-            assert (settings.bhp_evidence_root_path / evidence_name).is_file()
+            assert source_path.read_bytes() == source_bytes
+            assert evidence_path.read_bytes() == evidence_bytes
     finally:
         with session_factory.begin() as session:
             session.execute(delete(BhpDecisionModel).where(BhpDecisionModel.product_id.in_([product_id, other_product_id])))

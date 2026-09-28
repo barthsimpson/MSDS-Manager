@@ -120,9 +120,9 @@ def test_task021_real_sds_ui_to_postgresql_and_second_current(
             ) is None
         app = _app(composition).run()
         assert app.header[0].value == "Dodaj SDS"
-        assert set(app.selectbox[0].options) == {first_relative, second_relative}
+        assert set(app.selectbox(key="sds-selected-file").options) == {first_relative, second_relative}
 
-        app.selectbox[0].set_value(first_relative).run()
+        app.selectbox(key="sds-selected-file").set_value(first_relative).run()
         app.button(key="read-sds").click().run()
         assert app.text_input(key="sds-product-name").value == product_name
         assert app.text_input(key="sds-product-code").value == "30470"
@@ -159,7 +159,8 @@ def test_task021_real_sds_ui_to_postgresql_and_second_current(
             ).all()
             assert len(session.scalars(select(ProductHistoryModel).where(ProductHistoryModel.product_id == product.product_id)).all()) == 1
 
-        app.selectbox[0].set_value(second_relative).run()
+        app.run()  # Leave the completed draft view before selecting another PDF.
+        app.selectbox(key="sds-selected-file").set_value(second_relative).run()
         app.button(key="read-sds").click().run()
         app.text_input(key="sds-manufacturer").set_value(manufacturer_name)
         app.text_input(key="sds-revision").set_value("10.03")
@@ -181,12 +182,13 @@ def test_task021_real_sds_ui_to_postgresql_and_second_current(
             assert sum(document.document_status == SdsDocumentStatus.CURRENT for document in documents) == 1
             assert len(session.scalars(select(ProductHistoryModel).where(ProductHistoryModel.product_id == product.product_id)).all()) == 2
 
-        app.selectbox[0].set_value(first_relative).run()
+        app.run()
+        app.selectbox(key="sds-selected-file").set_value(first_relative).run()
         app.button(key="read-sds").click().run()
         app.button(key="cancel-sds").click().run()
         assert "add_sds_draft" not in app.session_state
 
-        app.selectbox[0].set_value(first_relative).run()
+        app.selectbox(key="sds-selected-file").set_value(first_relative).run()
         app.button(key="read-sds").click().run()
         app.text_input(key="sds-manufacturer").set_value("")
         app.button(key="accept-sds").click().run()

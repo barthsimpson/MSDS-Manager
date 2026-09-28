@@ -1,6 +1,7 @@
 from contextlib import nullcontext
 from dataclasses import replace
 from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -21,7 +22,9 @@ def complete_row() -> SupervisoryProductRow:
         product_id="product-1", product_name="Paint", manufacturer_name="Maker",
         manufacturer_product_code="001", usage_status=ProductUsageStatus.ACTIVE,
         use_description="Painting", use_restriction="Professional use",
-        usage_locations=("Workshop",), current_sds_id="sds-1",
+        usage_location_name="Workshop", peak_quantity_value=Decimal("25"),
+        peak_quantity_unit="l", monthly_consumption_value=Decimal("0"),
+        monthly_consumption_unit="l", current_sds_id="sds-1",
         current_sds_filename="paint.pdf", current_sds_issue_date=date(2025, 1, 1),
         current_sds_revision="1", current_sds_file_available=True,
         current_bhp_decision_id="bhp-1",
@@ -44,13 +47,13 @@ def complete_row() -> SupervisoryProductRow:
       "current_bhp_decision_id": None, "current_bhp_evidence_available": False},
      ("BRAK CURRENT SDS",)),
     ({"current_sds_file_available": False}, ("BRAK PLIKU SDS",)),
-    ({"usage_locations": ()}, ("BRAK MIEJSCA STOSOWANIA",)),
+    ({"usage_location_name": None}, ("BRAK MIEJSCA STOSOWANIA",)),
     ({"current_bhp_evidence_available": False}, ("BRAK PLIKU DOWODU BHP",)),
-    ({"usage_status": ProductUsageStatus.REJECTED, "usage_locations": (),
+    ({"usage_status": ProductUsageStatus.REJECTED, "usage_location_name": None,
       "current_sds_file_available": False, "current_bhp_evidence_available": False},
      ("PRODUKT ODRZUCONY", "BRAK PLIKU SDS", "BRAK MIEJSCA STOSOWANIA",
       "BRAK PLIKU DOWODU BHP")),
-    ({"usage_status": ProductUsageStatus.PENDING_APPROVAL, "usage_locations": (),
+    ({"usage_status": ProductUsageStatus.PENDING_APPROVAL, "usage_location_name": None,
       "current_sds_id": None, "current_sds_file_available": False,
       "current_bhp_decision_id": None, "current_bhp_evidence_available": False},
      ("BRAK DECYZJI BHP", "BRAK CURRENT SDS", "BRAK MIEJSCA STOSOWANIA")),
@@ -84,6 +87,19 @@ def test_empty_list_and_stable_order(complete_row) -> None:
     assert [row.product_id for row in ListSupervisoryProducts(query).execute()] == [
         "2", "product-1", "3", "0"
     ]
+
+
+def test_product_reasons_propagate_to_each_location_row(complete_row) -> None:
+    query = Mock()
+    query.list_products.return_value = [
+        replace(complete_row, usage_status=ProductUsageStatus.REJECTED,
+                usage_location_name=name)
+        for name in ("Workshop A", "Workshop B")
+    ]
+    rows = ListSupervisoryProducts(query).execute()
+    assert [row.usage_location_name for row in rows] == ["Workshop A", "Workshop B"]
+    assert all(row.action_reasons == ("PRODUKT ODRZUCONY",) for row in rows)
+    assert all("BRAK MIEJSCA STOSOWANIA" not in row.action_reasons for row in rows)
 
 
 @pytest.mark.parametrize("conflicting_field", [

@@ -4,11 +4,15 @@ import streamlit as st
 
 from app.application.dto import SupervisoryProductRow
 from app.application.exceptions import SupervisoryReadError
-from app.domain.enums import ProductUsageStatus
+from app.domain.enums import BhpDecisionStatus, ProductUsageStatus
 from app.presentation.streamlit.composition import ShellComposition, ShellInitializationError
 
 
 READ_ERROR_MESSAGE = "Nie udało się odczytać danych widoku nadzorczego."
+
+
+def _value(value) -> str:
+    return "—" if value is None else str(value)
 
 
 def _table_row(row: SupervisoryProductRow) -> dict[str, str]:
@@ -22,7 +26,11 @@ def _table_row(row: SupervisoryProductRow) -> dict[str, str]:
         "Produkt": row.product_name,
         "Producent": row.manufacturer_name,
         "Kod producenta": row.manufacturer_product_code,
-        "Miejsca stosowania": "; ".join(row.usage_locations) or "—",
+        "Lokalizacja": row.usage_location_name or "Brak",
+        "Maks. ilość": _value(row.peak_quantity_value),
+        "Jedn.": _value(row.peak_quantity_unit),
+        "Zużycie mies.": _value(row.monthly_consumption_value),
+        "Jedn. zużycia": _value(row.monthly_consumption_unit),
         "SDS": sds,
         "Data SDS": row.current_sds_issue_date.isoformat() if row.current_sds_issue_date else "—",
         "Rewizja SDS": row.current_sds_revision or "—",
@@ -47,6 +55,7 @@ def render_supervisory(composition: ShellComposition) -> None:
         st.info("Brak produktów do wyświetlenia.")
         return
 
+    search = st.text_input("Szukaj produktu", key="supervisory-search")
     action = st.selectbox(
         "Wymaga działania", ("Wszystkie", "Wymagają działania"), key="supervisory-action"
     )
@@ -56,16 +65,32 @@ def render_supervisory(composition: ShellComposition) -> None:
         key="supervisory-status",
     )
     location = st.selectbox(
-        "Miejsce stosowania",
-        (None, *sorted({place for row in rows for place in row.usage_locations})),
-        format_func=lambda value: "Wszystkie" if value is None else value,
+        "Lokalizacja",
+        (None, *sorted({row.usage_location_name for row in rows
+                        if row.usage_location_name is not None}), ""),
+        format_func=lambda value: (
+            "Wszystkie" if value is None else "Brak miejsca" if value == "" else value
+        ),
         key="supervisory-location",
     )
+    bhp = st.selectbox(
+        "BHP", ("Wszystkie", "Dopuszczony", "Niedopuszczony", "Brak decyzji"),
+        key="supervisory-bhp",
+    )
+    bhp_status = {
+        "Dopuszczony": BhpDecisionStatus.APPROVED,
+        "Niedopuszczony": BhpDecisionStatus.REJECTED,
+        "Brak decyzji": None,
+    }
     visible = [
         _table_row(row) for row in rows
         if (action == "Wszystkie" or row.requires_action)
+        and search.casefold() in row.product_name.casefold()
         and (status is None or row.usage_status == status)
-        and (location is None or location in row.usage_locations)
+        and (location is None or
+             (location == "" and row.usage_location_name is None) or
+             row.usage_location_name == location)
+        and (bhp == "Wszystkie" or row.current_bhp_decision_status == bhp_status[bhp])
     ]
     if not visible:
         st.info("Brak produktów spełniających wybrane filtry.")

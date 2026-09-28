@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import date
+from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
@@ -17,7 +18,9 @@ def row():
     return SupervisoryProductRow(
         product_id="p1", product_name="Produkt A", manufacturer_name="Producent A",
         manufacturer_product_code="A-1", usage_status=ProductUsageStatus.ACTIVE,
-        use_description="", use_restriction="", usage_locations=("Hala A",),
+        use_description="", use_restriction="", usage_location_name="Hala A",
+        peak_quantity_value=Decimal("25"), peak_quantity_unit="l",
+        monthly_consumption_value=Decimal("0"), monthly_consumption_unit="l",
         current_sds_id="s1", current_sds_filename="sds.pdf",
         current_sds_issue_date=date(2026, 1, 2), current_sds_revision="2",
         current_sds_file_available=True, current_bhp_decision_id="b1",
@@ -46,13 +49,15 @@ def test_complete_active_row_and_read_only_controls(row):
     assert len(app.dataframe) == 1
     assert app.dataframe[0].value.to_dict("records") == [{
         "Produkt": "Produkt A", "Producent": "Producent A", "Kod producenta": "A-1",
-        "Miejsca stosowania": "Hala A", "SDS": "CURRENT", "Data SDS": "2026-01-02",
+        "Lokalizacja": "Hala A", "Maks. ilość": "25", "Jedn.": "l",
+        "Zużycie mies.": "0", "Jedn. zużycia": "l",
+        "SDS": "CURRENT", "Data SDS": "2026-01-02",
         "Rewizja SDS": "2", "Status produktu": "ACTIVE", "BHP": "APPROVED",
         "Warunki / uwagi": "Stosować wentylację.", "Wymaga działania": "OK",
     }]
-    assert len(app.selectbox) == 3
+    assert len(app.selectbox) == 4
     assert not app.button
-    assert not app.text_input
+    assert len(app.text_input) == 1
     assert not app.get("file_uploader")
     assert not app.get("download_button")
 
@@ -66,26 +71,46 @@ def test_action_reasons_are_displayed_without_recalculation(row, reasons):
     assert app.dataframe[0].value.iloc[0]["Wymaga działania"] == "; ".join(reasons)
 
 
-def test_multiple_locations_remain_one_row(row):
-    app = app_for([replace(row, usage_locations=("Hala A", "Hala B"))])
-    assert len(app.dataframe[0].value) == 1
-    assert app.dataframe[0].value.iloc[0]["Miejsca stosowania"] == "Hala A; Hala B"
+def test_multiple_locations_are_separate_rows(row):
+    app = app_for([row, replace(row, usage_location_name="Hala B",
+                                peak_quantity_value=Decimal("300"),
+                                monthly_consumption_value=None,
+                                monthly_consumption_unit=None)])
+    assert app.dataframe[0].value["Lokalizacja"].tolist() == ["Hala A", "Hala B"]
+    assert app.dataframe[0].value["Zużycie mies."].tolist() == ["0", "—"]
 
 
 @pytest.mark.parametrize("key,value", [
     ("supervisory-action", "Wymagają działania"),
     ("supervisory-status", ProductUsageStatus.INACTIVE),
     ("supervisory-location", "Hala B"),
+    ("supervisory-bhp", "Brak decyzji"),
 ])
 def test_filters(row, key, value):
     other = replace(row, product_id="p2", product_name="Produkt B",
                     usage_status=ProductUsageStatus.INACTIVE,
-                    usage_locations=("Hala A", "Hala B"),
+                    usage_location_name="Hala B", current_bhp_decision_id=None,
+                    current_bhp_decision_status=None,
                     requires_action=True, action_reasons=("BRAK PLIKU SDS",))
     app = app_for([row, other])
     app.selectbox(key=key).set_value(value).run()
     assert not app.exception
     assert app.dataframe[0].value["Produkt"].tolist() == ["Produkt B"]
+
+
+def test_product_search_and_combined_filters(row):
+    other = replace(row, product_id="p2", product_name="Produkt B",
+                    usage_location_name=None, peak_quantity_value=None,
+                    peak_quantity_unit=None, monthly_consumption_value=None,
+                    monthly_consumption_unit=None,
+                    current_bhp_decision_id=None, current_bhp_decision_status=None,
+                    requires_action=True, action_reasons=("BRAK MIEJSCA STOSOWANIA",))
+    app = app_for([row, other])
+    app.text_input(key="supervisory-search").set_value("PRODUKT b")
+    app.selectbox(key="supervisory-location").set_value("")
+    app.selectbox(key="supervisory-bhp").set_value("Brak decyzji")
+    app.selectbox(key="supervisory-action").set_value("Wymagają działania").run()
+    assert app.dataframe[0].value["Lokalizacja"].tolist() == ["Brak"]
 
 
 def test_combined_filters_and_reset(row):
@@ -122,10 +147,15 @@ def test_controlled_error(error_type):
      "BRAK PLIKU SDS", "REJECTED"),
 ])
 def test_missing_values_and_status_formatting(row, changes, expected_sds, expected_bhp):
-    app = app_for([replace(row, **changes, usage_locations=(), current_bhp_notes=None,
+    app = app_for([replace(row, **changes, usage_location_name=None,
+                           peak_quantity_value=None, peak_quantity_unit=None,
+                           monthly_consumption_value=None, monthly_consumption_unit=None,
+                           current_bhp_notes=None,
                            current_sds_issue_date=None, current_sds_revision=None)])
     values = app.dataframe[0].value.iloc[0]
     assert values["SDS"] == expected_sds
     assert values["BHP"] == expected_bhp
-    for column in ("Miejsca stosowania", "Warunki / uwagi", "Data SDS", "Rewizja SDS"):
+    assert values["Lokalizacja"] == "Brak"
+    for column in ("Maks. ilość", "Jedn.", "Zużycie mies.", "Jedn. zużycia",
+                   "Warunki / uwagi", "Data SDS", "Rewizja SDS"):
         assert values[column] == "—"

@@ -28,7 +28,7 @@ def main() -> None:
     data = work / "postgres"
     command_number = 0
 
-    def run(*args: str) -> str:
+    def run(*args: str, check: bool = True) -> str:
         nonlocal command_number
         command_number += 1
         print("RUN:", " ".join(args), flush=True)
@@ -42,7 +42,8 @@ def main() -> None:
             )
         output = output_path.read_text(encoding="utf-8", errors="replace")
         print(output, end="", flush=True)
-        result.check_returncode()
+        if check:
+            result.check_returncode()
         return output
 
     try:
@@ -58,6 +59,16 @@ def main() -> None:
         run(str(pg_bin / "createdb.exe"), "-h", "127.0.0.1", "-p", str(port),
             "-U", "task026", "msds_manager")
         run(sys.executable, "-m", "alembic", "upgrade", "head")
+        if len(sys.argv) >= 3 and sys.argv[1] == "--diagnose":
+            targets = sys.argv[2:]
+            output = run(
+                sys.executable, "-m", "pytest", *targets, "-vv", "-x",
+                "--tb=long", "-W", "error::sqlalchemy.exc.SAWarning",
+                "--basetemp=" + str(work / "diagnostic"), check=False,
+            )
+            expected = f"{len(targets)} passed"
+            print("DIAGNOSTIC RESULT:", "PASS" if expected in output else "FAIL")
+            return
         phases = (
             ("focused", "tests/unit/test_task026_supervisory.py"),
             ("integration", "tests/integration/test_task026_supervisory_read_model_postgresql.py"),
@@ -68,13 +79,24 @@ def main() -> None:
                 "--basetemp=" + str(work / phase), target)
         run(sys.executable, "-m", "alembic", "current")
         run(sys.executable, "-m", "alembic", "check")
+        fixture_tables = (
+            "manufacturers", "products", "usage_locations", "product_usage_locations",
+            "product_history", "usage_location_history", "product_usage_location_history",
+            "sds_documents", "safety_profiles", "sds_components",
+            "bhp_decisions", "decision_evidence",
+        )
+        fixture_query = " UNION ALL ".join(
+            f"SELECT '{table}', count(*) FROM {table}" for table in fixture_tables
+        )
         remaining = run(
             str(pg_bin / "psql.exe"), "-h", "127.0.0.1", "-p", str(port),
-            "-U", "task026", "-d", "msds_manager", "-At", "-c",
-            "SELECT count(*) FROM products;",
+            "-U", "task026", "-d", "msds_manager", "-At", "-F", "|",
+            "-c", fixture_query,
         )
-        assert remaining.strip() == "0", "Test products remain after regression"
-        print("PostgreSQL fixture cleanup: PASS (0 products).", flush=True)
+        counts = dict(line.split("|") for line in remaining.strip().splitlines())
+        assert set(counts) == set(fixture_tables), "Fixture count query was incomplete"
+        assert all(count == "0" for count in counts.values()), counts
+        print("PostgreSQL fixture cleanup: PASS (12 empty business tables).", flush=True)
     finally:
         if (data / "postmaster.pid").exists():
             # Do not remove cluster files if PostgreSQL could not be stopped.

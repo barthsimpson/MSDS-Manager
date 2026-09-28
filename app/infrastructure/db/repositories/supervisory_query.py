@@ -83,30 +83,48 @@ class SqlAlchemySupervisoryQuery(SupervisoryQueryPort):
         if not rows:
             return []
 
-        locations: dict[str, list[str]] = defaultdict(list)
-        for product_id, name in self._session.execute(
-            select(ProductUsageLocationModel.product_id, UsageLocationModel.location_name)
+        locations: dict[str, list[dict]] = defaultdict(list)
+        for location in self._session.execute(
+            select(
+                ProductUsageLocationModel.product_id,
+                UsageLocationModel.location_name.label("usage_location_name"),
+                ProductUsageLocationModel.peak_quantity_value,
+                ProductUsageLocationModel.peak_quantity_unit,
+                ProductUsageLocationModel.monthly_consumption_value,
+                ProductUsageLocationModel.monthly_consumption_unit,
+            )
             .join(UsageLocationModel,
                   ProductUsageLocationModel.location_id == UsageLocationModel.location_id)
             .where(UsageLocationModel.status == UsageLocationStatus.ACTIVE)
             .order_by(ProductUsageLocationModel.product_id,
                       UsageLocationModel.location_name, UsageLocationModel.location_id)
-        ):
-            locations[product_id].append(name)
+        ).mappings():
+            locations[location["product_id"]].append({
+                key: value for key, value in location.items() if key != "product_id"
+            })
 
         result: list[SupervisoryProductRow] = []
         for row in rows:
             facts = dict(row)
             sds_relative_path = facts.pop("sds_relative_path")
-            result.append(SupervisoryProductRow(
-                **facts,
-                usage_locations=tuple(locations[row["product_id"]]),
-                current_sds_file_available=source_file_available(
-                    self._settings.sds_root_path, sds_relative_path
-                ),
-                current_bhp_evidence_available=source_file_available(
-                    self._settings.bhp_evidence_root_path,
-                    row["current_bhp_evidence_relative_path"],
-                ),
-            ))
+            sds_available = source_file_available(
+                self._settings.sds_root_path, sds_relative_path
+            )
+            evidence_available = source_file_available(
+                self._settings.bhp_evidence_root_path,
+                row["current_bhp_evidence_relative_path"],
+            )
+            for location in locations[row["product_id"]] or [{
+                "usage_location_name": None,
+                "peak_quantity_value": None,
+                "peak_quantity_unit": None,
+                "monthly_consumption_value": None,
+                "monthly_consumption_unit": None,
+            }]:
+                result.append(SupervisoryProductRow(
+                    **facts,
+                    **location,
+                    current_sds_file_available=sds_available,
+                    current_bhp_evidence_available=evidence_available,
+                ))
         return result

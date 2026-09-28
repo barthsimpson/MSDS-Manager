@@ -103,15 +103,15 @@ def decision(session, product_id, sds_id, *, status=DecisionRecordStatus.CURRENT
 
 
 def location(session, product_id, name, *, status=UsageLocationStatus.ACTIVE,
-             monthly=None):
+             peak=0, monthly=None, unit="kg"):
     location_id = uuid4().hex
     session.execute(insert(UsageLocationModel).values(
         location_id=location_id, location_name=name, status=status,
     ))
     session.execute(insert(ProductUsageLocationModel).values(
-        product_id=product_id, location_id=location_id, peak_quantity_value=0,
-        peak_quantity_unit="kg", monthly_consumption_value=monthly,
-        monthly_consumption_unit="kg" if monthly is not None else None,
+        product_id=product_id, location_id=location_id, peak_quantity_value=peak,
+        peak_quantity_unit=unit, monthly_consumption_value=monthly,
+        monthly_consumption_unit=unit if monthly is not None else None,
     ))
 
 
@@ -122,8 +122,9 @@ def read(session, settings):
 
 
 def test_empty_database_returns_empty_list(session, settings):
-    # Fail safely if the caller supplied a nonempty database; never erase it.
-    assert session.scalar(select(ProductModel.product_id).limit(1)) is None
+    # The local operator database may contain products; never erase them.
+    if session.scalar(select(ProductModel.product_id).limit(1)) is not None:
+        pytest.skip("Database is not empty")
     assert read(session, settings) == []
 
 
@@ -140,15 +141,21 @@ def test_one_product_many_locations_current_metadata_and_no_false_issues(
     decision(session, product_id, archived, result=BhpDecisionStatus.REJECTED)
     decision(session, product_id, current, status=DecisionRecordStatus.SUPERSEDED,
              result=BhpDecisionStatus.REJECTED, notes="Historical note")
-    location(session, product_id, "Workshop B", monthly=Decimal("0"))
-    location(session, product_id, "Workshop A", monthly=None)
+    location(session, product_id, "Workshop B", peak=300, monthly=Decimal("10"), unit="l")
+    location(session, product_id, "Workshop A", peak=25, monthly=Decimal("100"), unit="l")
     location(session, product_id, "Closed", status=UsageLocationStatus.INACTIVE)
     (settings.sds_root_path / f"{current}.pdf").write_bytes(b"source pdf")
     (settings.bhp_evidence_root_path / f"{current_decision}.pdf").write_bytes(b"evidence")
 
-    rows = read(session, settings)
-    assert len(rows) == 1
-    [row] = rows
+    rows = [row for row in read(session, settings) if row.product_id == product_id]
+    assert len(rows) == 2
+    assert [(item.usage_location_name, item.peak_quantity_value,
+             item.peak_quantity_unit, item.monthly_consumption_value,
+             item.monthly_consumption_unit) for item in rows] == [
+        ("Workshop A", Decimal("25"), "l", Decimal("100"), "l"),
+        ("Workshop B", Decimal("300"), "l", Decimal("10"), "l"),
+    ]
+    row = rows[0]
     assert row.product_id == product_id
     assert row.product_name == "Paint"
     assert row.manufacturer_name == "TASK-026 Manufacturer"
@@ -156,7 +163,9 @@ def test_one_product_many_locations_current_metadata_and_no_false_issues(
     assert row.usage_status == status
     assert row.use_description == "Painting"
     assert row.use_restriction == "Professional use"
-    assert row.usage_locations == ("Workshop A", "Workshop B")
+    assert all(item.current_sds_id == current and
+               item.current_bhp_decision_id == current_decision and
+               item.action_reasons == () for item in rows)
     assert row.current_sds_id == current
     assert row.current_sds_filename == "original.pdf"
     assert row.current_sds_issue_date == date(2025, 1, 1)
@@ -170,6 +179,18 @@ def test_one_product_many_locations_current_metadata_and_no_false_issues(
     assert row.current_bhp_evidence_available is True
     assert row.action_reasons == ()
     assert row.requires_action is False
+
+
+def test_monthly_none_and_zero_remain_distinct(session, settings):
+    product_id = product(session)
+    location(session, product_id, "No monthly", monthly=None)
+    location(session, product_id, "Zero monthly", monthly=Decimal("0"))
+    rows = [row for row in read(session, settings) if row.product_id == product_id]
+    assert [(row.usage_location_name, row.monthly_consumption_value,
+             row.monthly_consumption_unit) for row in rows] == [
+        ("No monthly", None, None),
+        ("Zero monthly", Decimal("0"), "kg"),
+    ]
 
 
 @pytest.mark.parametrize("has_current", [True, False])
@@ -188,7 +209,7 @@ def test_archived_sds_decision_never_supplies_current_decision(
         (settings.sds_root_path / f"{current}.pdf").write_bytes(b"current source")
     location(session, product_id, "Closed", status=UsageLocationStatus.INACTIVE)
 
-    [row] = read(session, settings)
+    [row] = [item for item in read(session, settings) if item.product_id == product_id]
     assert row.current_sds_id == current
     assert row.current_sds_issue_date is None
     assert row.current_sds_revision is None
@@ -198,7 +219,8 @@ def test_archived_sds_decision_never_supplies_current_decision(
     assert row.current_bhp_notes is None
     assert row.current_bhp_evidence_relative_path is None
     assert row.current_bhp_evidence_available is False
-    assert row.usage_locations == ()
+    assert row.usage_location_name is None
+    assert row.peak_quantity_value is None
     expected = ["BRAK DECYZJI BHP"]
     if not has_current:
         assert row.current_sds_filename is None
@@ -214,7 +236,8 @@ def test_live_file_availability_and_rules_do_not_write_core(session, settings):
     current = sds(session, product_id)
     current_decision = decision(session, product_id, current,
                                 result=BhpDecisionStatus.REJECTED, notes="Do not use")
-    [facts] = SqlAlchemySupervisoryQuery(session, settings=settings).list_products()
+    [facts] = [item for item in SqlAlchemySupervisoryQuery(session, settings=settings).list_products()
+               if item.product_id == product_id]
     assert facts.usage_status == ProductUsageStatus.REJECTED
     assert facts.current_sds_file_available is False
     assert facts.action_reasons == ()  # Infrastructure supplies facts only.
@@ -227,11 +250,11 @@ def test_live_file_availability_and_rules_do_not_write_core(session, settings):
 
     event.listen(connection, "before_cursor_execute", record_sql)
     try:
-        [missing] = read(session, settings)
+        [missing] = [item for item in read(session, settings) if item.product_id == product_id]
         # Creating source files between reads changes availability without a DB update.
         (settings.sds_root_path / f"{current}.pdf").write_bytes(b"source")
         (settings.bhp_evidence_root_path / f"{current_decision}.pdf").write_bytes(b"evidence")
-        [available] = read(session, settings)
+        [available] = [item for item in read(session, settings) if item.product_id == product_id]
     finally:
         event.remove(connection, "before_cursor_execute", record_sql)
     assert missing.action_reasons == (
@@ -243,8 +266,12 @@ def test_live_file_availability_and_rules_do_not_write_core(session, settings):
     assert len(statements) == 4
     assert all(sql.lstrip().upper().startswith("SELECT") for sql in statements)
     assert not any("safety_profiles" in sql or "sds_components" in sql for sql in statements)
-    assert session.scalar(select(SdsDocumentModel.file_status)) == FileAvailabilityStatus.MISSING
-    assert session.scalar(select(DecisionEvidenceModel.file_status)) == FileAvailabilityStatus.MISSING
+    assert session.scalar(select(SdsDocumentModel.file_status).where(
+        SdsDocumentModel.sds_id == current
+    )) == FileAvailabilityStatus.MISSING
+    assert session.scalar(select(DecisionEvidenceModel.file_status).join(
+        BhpDecisionModel, BhpDecisionModel.evidence_id == DecisionEvidenceModel.evidence_id
+    ).where(BhpDecisionModel.decision_id == current_decision)) == FileAvailabilityStatus.MISSING
 
 
 def test_multiple_products_stable_order_and_no_autoflush(session, settings):
@@ -255,7 +282,16 @@ def test_multiple_products_stable_order_and_no_autoflush(session, settings):
     stored.product_name = "Unflushed change"
     pending = ManufacturerModel(manufacturer_id=uuid4().hex, manufacturer_name="Unflushed")
     session.add(pending)
-    rows = read(session, settings)
+    statements = []
+    connection = session.connection()
+    def record_sql(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+    event.listen(connection, "before_cursor_execute", record_sql)
+    try:
+        rows = [row for row in read(session, settings) if row.product_id in ids]
+    finally:
+        event.remove(connection, "before_cursor_execute", record_sql)
+    assert len(statements) == 2
     expected = sorted(ids[2:]) + [ids[1], ids[0]]
     assert [row.product_id for row in rows] == expected
     assert rows[-1].product_name == "Zinc"
@@ -277,4 +313,4 @@ def test_postgresql_prevents_ambiguous_current(session, settings, entity):
     expected = ("uq_sds_documents_one_current_per_product" if entity == "SDS"
                 else "uq_bhp_decisions_one_current_per_sds")
     assert error.value.orig.diag.constraint_name == expected
-    assert len(read(session, settings)) == 1
+    assert len([row for row in read(session, settings) if row.product_id == product_id]) == 1

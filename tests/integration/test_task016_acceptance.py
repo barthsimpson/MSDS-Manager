@@ -1,9 +1,11 @@
 from collections.abc import Iterator
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+import streamlit as st
 from sqlalchemy import delete
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -149,16 +151,32 @@ def _cleanup_fixture(
 
 def test_task016_sprint2_end_to_end_acceptance(
     session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     manufacturer_id, product_id, location_a, location_b = _fixture_ids()
     _seed_fixture(session_factory, manufacturer_id, product_id)
     executor = TransactionExecutor(session_factory)
+    real_dataframe = st.dataframe
+
+    def select_fixture_row(data, **kwargs):
+        result = real_dataframe(data, **kwargs)
+        if kwargs.get("key") == "product-registry":
+            selected = next(index for index, row in enumerate(data)
+                            if row["Produkt"] == "TASK-016 Fixture Product"
+                            and row["Kod producenta"] == "TASK016")
+            return SimpleNamespace(selection=SimpleNamespace(rows=[selected]))
+        return result
+
+    monkeypatch.setattr(st, "dataframe", select_fixture_row)
 
     try:
         app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
         assert app.exception == []
         assert app.header[0].value == "Produkty"
-        assert any(product_id in str(frame.value) for frame in app.dataframe)
+        assert app.dataframe[0].value.columns.tolist() == [
+            "Produkt", "Kod producenta", "Producent", "Status", "SDS", "BHP"
+        ]
+        assert product_id not in str(app.dataframe[0].value)
         assert any("TASK-016 Fixture Product" in item.value for item in app.text)
 
         composition = build_shell_composition()

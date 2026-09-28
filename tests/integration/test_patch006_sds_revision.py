@@ -59,8 +59,8 @@ def session_factory(database_engine: Engine) -> sessionmaker[Session]:
 
 def test_add_revision_preserves_product_usage_and_previous_bhp(
     session_factory: sessionmaker[Session],
+    tmp_path: Path,
 ) -> None:
-    settings = load_settings()
     suffix = uuid4().hex
     manufacturer_id = f"patch006-manufacturer-{suffix}"
     product_id = f"patch006-product-{suffix}"
@@ -72,6 +72,12 @@ def test_add_revision_preserves_product_usage_and_previous_bhp(
     registered_at = datetime.now(timezone.utc)
     source = "Cx80 XBRAKE CLEANER rew03 15.01.2025.pdf"
     revision_source = "CX 80 XBAKE CLEANER rew. 01-08-2015.pdf"
+    sds_root = tmp_path / "sds"
+    sds_root.mkdir()
+    (sds_root / source).write_bytes(b"%PDF-1.4\nold fixture\n")
+    revision_pdf = sds_root / revision_source
+    revision_pdf.write_bytes(b"%PDF-1.4\nrevision fixture\n")
+    revision_bytes = revision_pdf.read_bytes()
 
     try:
         with session_factory.begin() as session:
@@ -158,7 +164,7 @@ def test_add_revision_preserves_product_usage_and_previous_bhp(
         new_sds_id = TransactionExecutor(session_factory).execute(
             lambda session: AddSdsRevision(
                 SqlAlchemySdsAcceptanceRepository(session),
-                SdsFileValidator(settings.sds_root_path),
+                SdsFileValidator(sds_root),
             ).execute(
                 AddSdsRevisionInput(
                     product_id=product_id,
@@ -192,6 +198,7 @@ def test_add_revision_preserves_product_usage_and_previous_bhp(
             assert session.scalars(
                 select(BhpDecisionModel).where(BhpDecisionModel.sds_id == new_sds_id)
             ).all() == []
+        assert revision_pdf.read_bytes() == revision_bytes
     finally:
         with session_factory.begin() as session:
             session.execute(delete(BhpDecisionModel).where(BhpDecisionModel.product_id == product_id))

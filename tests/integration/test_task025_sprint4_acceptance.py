@@ -160,13 +160,14 @@ def test_task025_bhp_ui_postgresql_acceptance(
 
         app = _app(composition).run()
         assert app.header[0].value == "Decyzja BHP"
-        assert set(app.selectbox[1].options) == {"approved.pdf", "correction.msg", "rejected.jpg"}
+        assert set(app.selectbox(key="bhp-evidence").options) == {"approved.pdf", "correction.msg", "rejected.jpg"}
 
-        app.selectbox[1].set_value("approved.pdf").run()
+        app.selectbox(key="bhp-evidence").set_value("approved.pdf").run()
         app.text_area(key="bhp-notes").set_value("Approved by BHP")
         app.button(key="save-bhp-decision").click().run()
-        assert any("ACTIVE" in item.value for item in app.success)
-        assert any("Istniejąca decyzja CURRENT" in item.value for item in app.info)
+        assert app.success
+        assert any(item.value == "Status produktu: Aktywny" for item in app.text)
+        assert any(item.value == "Decyzja: Dopuszczony" for item in app.text)
 
         with session_factory() as session:
             product = session.get(ProductModel, product_id)
@@ -181,11 +182,13 @@ def test_task025_bhp_ui_postgresql_acceptance(
             assert decision.notes == "Approved by BHP"
             assert session.scalars(select(ProductHistoryModel).where(ProductHistoryModel.product_id == product_id)).all()[-1].usage_status is ProductUsageStatus.ACTIVE
 
-        app.selectbox[1].set_value("correction.msg").run()
+        app.selectbox(key="bhp-evidence").set_value("correction.msg").run()
         app.radio(key="bhp-decision-status").set_value("REJECTED")
         app.text_area(key="bhp-notes").set_value("Correction decision")
         app.button(key="save-bhp-decision").click().run()
-        assert any("REJECTED" in item.value for item in app.success)
+        assert app.success
+        assert any(item.value == "Status produktu: Odrzucony" for item in app.text)
+        assert any(item.value == "Decyzja: Niedopuszczony" for item in app.text)
 
         with session_factory() as session:
             decisions = session.scalars(
@@ -213,7 +216,7 @@ def test_task025_bhp_ui_postgresql_acceptance(
         (tmp_path / "empty-evidence").mkdir()
         empty_app = _app(empty_composition).run()
         assert any(
-            item.value == "Brak dostępnych dowodów decyzji w BHP_EVIDENCE_ROOT_PATH."
+            item.value == "Brak dostępnych plików dowodu decyzji."
             for item in empty_app.info
         )
         assert empty_app.button(key="save-bhp-decision")

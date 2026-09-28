@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
@@ -115,19 +115,17 @@ def test_product_registry_uses_product_id_and_renders_all_location_values(
     assert app.dataframe[1].value.to_dict("records") == [
         {
             "Lokalizacja": "Linia A",
-            "Status lokalizacji": "ACTIVE",
-            "Peak wartość": "0",
-            "Peak jednostka": "kg",
-            "Monthly wartość": "Brak danych",
-            "Monthly jednostka": "l/month",
+            "Maksymalna ilość": "0",
+            "Jednostka": "kg",
+            "Zużycie miesięczne": "—",
+            "Jednostka zużycia": "—",
         },
         {
             "Lokalizacja": "Magazyn B",
-            "Status lokalizacji": "INACTIVE",
-            "Peak wartość": "12.50",
-            "Peak jednostka": "l",
-            "Monthly wartość": "0",
-            "Monthly jednostka": "kg/month",
+            "Maksymalna ilość": "12.50",
+            "Jednostka": "l",
+            "Zużycie miesięczne": "0",
+            "Jednostka zużycia": "kg/month",
         },
     ]
     assert any(item.value == "Producent: Manufacturer B" for item in app.text)
@@ -164,7 +162,8 @@ def test_registry_presents_existing_sds_bhp_and_preserves_domain_status(
         usage_status=product.usage_status,
         use_description=product.use_description,
         use_restriction=product.use_restriction,
-        usage_locations=(),
+        usage_location_name=None, peak_quantity_value=None, peak_quantity_unit=None,
+        monthly_consumption_value=None, monthly_consumption_unit=None,
         current_sds_id="sds-id",
         current_sds_filename="current.pdf",
         current_sds_issue_date=None,
@@ -378,3 +377,90 @@ def test_delete_action_requires_explicit_confirmation(
     )
 
     assert composition.deleted is False
+
+
+def test_usage_assignments_empty_state_and_closed_forms():
+    product = make_product("empty", "Manufacturer")
+    details = ProductDetails(**asdict(product), usage_locations=())
+
+    class Composition:
+        def list_usage_locations(self):
+            return []
+
+    def render(current_details, current_composition):
+        from app.presentation.streamlit.product_registry import _render_details
+        _render_details(current_composition, current_details, None)
+
+    app = AppTest.from_function(render, args=(details, Composition())).run()
+    assert not app.exception
+    assert any(item.value == "Brak przypisanych miejsc stosowania." for item in app.info)
+    assert "+ Dodaj miejsce stosowania" in {button.label for button in app.button}
+    assert "Maksymalna ilość na stanowisku" not in {item.label for item in app.text_input}
+
+
+def test_one_usage_assignment_is_one_table_row():
+    details = make_details(make_product("single", "Manufacturer"))
+    details = replace(details, usage_locations=details.usage_locations[:1])
+
+    def render(current_details):
+        from app.presentation.streamlit.product_registry import _render_details
+        _render_details(None, current_details, None)
+
+    app = AppTest.from_function(render, args=(details,)).run()
+    assert not app.exception
+    assert len(app.dataframe) == 1
+    assert app.dataframe[0].value["Lokalizacja"].tolist() == ["Linia A"]
+
+
+def test_add_and_edit_assignment_use_distinct_forms_and_existing_use_cases():
+    product = make_product("p1", "Manufacturer")
+    details = make_details(product)
+
+    class Composition:
+        assigned = None
+        updated = None
+
+        def list_usage_locations(self):
+            return [SimpleNamespace(location_id="location-c", location_name="Hala C",
+                                    status=UsageLocationStatus.ACTIVE)]
+
+        def assign_product_usage_location(self, data):
+            self.assigned = data
+
+        def update_product_usage_location(self, data):
+            self.updated = data
+
+    composition = Composition()
+    selection = SimpleNamespace(selection=SimpleNamespace(rows=[1]))
+
+    def render(current_composition, current_details, current_selection):
+        from app.presentation.streamlit.product_registry import _render_product_operations
+        _render_product_operations(current_composition, current_details, current_selection)
+
+    app = AppTest.from_function(render, args=(composition, details, selection)).run()
+    assert not app.exception
+    assert "Maksymalna ilość na stanowisku" not in {item.label for item in app.text_input}
+    app.button(key="add-location-p1").click().run()
+    assert not app.exception
+    assert "Edytuj przypisanie" not in {item.value for item in app.subheader}
+    app.text_input(key="add-location-p1-peak").set_value("25")
+    app.text_input(key="add-location-p1-peak-unit").set_value("l")
+    app.checkbox(key="add-location-p1-monthly-enabled").check().run()
+    app.text_input(key="add-location-p1-monthly").set_value("0")
+    app.text_input(key="add-location-p1-monthly-unit").set_value("l")
+    app.button(key="assign-p1").click().run()
+    assert not app.exception
+    assert composition.assigned.product_id == "p1"
+    assert composition.assigned.location_id == "location-c"
+    assert composition.assigned.peak_quantity_value == Decimal("25")
+    assert composition.assigned.monthly_consumption_value == Decimal("0")
+
+    app.button(key="edit-location-p1").click().run()
+    assert not app.exception
+    assert "Dodaj miejsce stosowania" not in {item.value for item in app.subheader}
+    assert app.text_input(key="edit-location-p1-location-b-peak").value == "12.50"
+    app.button(key="quantity-p1-location-b").click().run()
+    assert not app.exception
+    assert composition.updated.product_id == "p1"
+    assert composition.updated.location_id == "location-b"
+    assert composition.updated.monthly_consumption_value == Decimal("0")

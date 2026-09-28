@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from decimal import Decimal
 
 from app.domain.enums import BhpDecisionStatus, ProductUsageStatus
 
@@ -17,7 +18,11 @@ class SupervisoryProductRow:
     usage_status: ProductUsageStatus
     use_description: str
     use_restriction: str
-    usage_locations: tuple[str, ...]
+    usage_location_name: str | None
+    peak_quantity_value: Decimal | None
+    peak_quantity_unit: str | None
+    monthly_consumption_value: Decimal | None
+    monthly_consumption_unit: str | None
     current_sds_id: str | None
     current_sds_filename: str | None
     current_sds_issue_date: date | None

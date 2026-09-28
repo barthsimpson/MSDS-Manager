@@ -75,11 +75,13 @@ def _registry_row(product: ProductListItem, row: SupervisoryProductRow | None) -
 def _location_row(location: ProductUsageLocationDetails) -> dict[str, str]:
     return {
         "Lokalizacja": location.location_name,
-        "Status lokalizacji": location.location_status.value,
-        "Peak wartość": str(location.peak_quantity_value),
-        "Peak jednostka": location.peak_quantity_unit,
-        "Monthly wartość": _optional_text(location.monthly_consumption_value),
-        "Monthly jednostka": _optional_text(location.monthly_consumption_unit),
+        "Maksymalna ilość": str(location.peak_quantity_value),
+        "Jednostka": location.peak_quantity_unit,
+        "Zużycie miesięczne": "—" if location.monthly_consumption_value is None else str(location.monthly_consumption_value),
+        "Jednostka zużycia": (
+            location.monthly_consumption_unit or "—"
+            if location.monthly_consumption_value is not None else "—"
+        ),
     }
 
 
@@ -183,13 +185,15 @@ def _render_details(
     if not details.usage_locations:
         st.info("Brak przypisanych miejsc stosowania.")
     else:
-        st.dataframe(
+        selection = st.dataframe(
             [_location_row(location) for location in details.usage_locations],
             hide_index=True,
             use_container_width=True,
+            on_select="rerun",
+            selection_mode="single-row",
+            key=f"product-locations-{details.product_id}",
         )
-    with st.expander("Zarządzaj miejscami stosowania"):
-        _render_product_operations(composition, details)
+    _render_product_operations(composition, details, selection if details.usage_locations else None)
 
     st.subheader("Dane administracyjne")
     st.text(f"Opis użycia: {details.use_description}")
@@ -226,34 +230,75 @@ def _decimal(value: str, label: str) -> Decimal:
 
 
 def _quantity_form(composition, details: ProductDetails, location) -> None:
-    peak_value = st.text_input("Peak quantity", str(location.peak_quantity_value), key=f"peak-{location.location_id}")
-    peak_unit = st.text_input("Jednostka peak", location.peak_quantity_unit, key=f"peak-unit-{location.location_id}")
-    monthly_enabled = st.checkbox("Podaj miesięczne zużycie", value=location.monthly_consumption_value is not None, key=f"monthly-enabled-{location.location_id}")
-    monthly_value = st.text_input("Monthly consumption", _optional_text(location.monthly_consumption_value) if monthly_enabled else "", key=f"monthly-{location.location_id}")
-    monthly_unit = st.text_input("Jednostka monthly", _optional_text(location.monthly_consumption_unit) if monthly_enabled else "", key=f"monthly-unit-{location.location_id}")
-    if st.button("Zapisz ilości", key=f"quantity-{details.product_id}-{location.location_id}"):
+    st.subheader("Edytuj przypisanie")
+    st.text(f"Lokalizacja: {location.location_name}")
+    prefix = f"edit-location-{details.product_id}-{location.location_id}"
+    # Parse only on save so an incomplete field does not interrupt rendering.
+    peak_value, peak_unit, monthly_value, monthly_unit = _quantity_fields(
+        prefix, str(location.peak_quantity_value), location.peak_quantity_unit,
+        location.monthly_consumption_value, location.monthly_consumption_unit,
+    )
+    if st.button("Zapisz przypisanie", key=f"quantity-{details.product_id}-{location.location_id}"):
         try:
-            monthly_data = ((_decimal(monthly_value, "Monthly consumption"), monthly_unit) if monthly_enabled else (None, None))
-            if monthly_data[0] is not None and not monthly_data[1].strip():
-                raise ValueError("Jednostka monthly jest wymagana.")
+            monthly_quantity = _decimal(monthly_value, "Zużycie miesięczne") if monthly_value is not None else None
+            if monthly_quantity is not None and not monthly_unit.strip():
+                raise ValueError("Jednostka zużycia miesięcznego jest wymagana.")
             composition.update_product_usage_location(
                 UpdateProductUsageLocationInput(
                     product_id=details.product_id,
                     location_id=location.location_id,
-                    peak_quantity_value=_decimal(peak_value, "Peak quantity"),
+                    peak_quantity_value=_decimal(peak_value, "Maksymalna ilość na stanowisku"),
                     peak_quantity_unit=peak_unit,
-                    monthly_consumption_value=monthly_data[0],
-                    monthly_consumption_unit=monthly_data[1] if monthly_data[1] else None,
+                    monthly_consumption_value=monthly_quantity,
+                    monthly_consumption_unit=monthly_unit if monthly_quantity is not None else None,
                 )
             )
-            st.success("Ilości zapisane.")
+            st.session_state.pop(f"location-mode-{details.product_id}", None)
+            st.success("Przypisanie zapisane.")
+            st.rerun()
         except (ShellInitializationError, ValueError) as error:
             st.error(str(error))
 
 
-def _render_product_operations(composition, details: ProductDetails) -> None:
-    for location in details.usage_locations:
-        _quantity_form(composition, details, location)
+def _quantity_fields(prefix, peak, peak_unit, monthly, monthly_unit):
+    first, second = st.columns(2)
+    with first:
+        peak_value = st.text_input("Maksymalna ilość na stanowisku", peak, key=f"{prefix}-peak")
+    with second:
+        peak_unit_value = st.text_input("Jednostka", peak_unit, key=f"{prefix}-peak-unit")
+    monthly_enabled = st.checkbox("Podaj miesięczne zużycie", value=monthly is not None,
+                                  key=f"{prefix}-monthly-enabled")
+    if not monthly_enabled:
+        return peak_value, peak_unit_value, None, None
+    first, second = st.columns(2)
+    with first:
+        monthly_value = st.text_input("Zużycie miesięczne", "" if monthly is None else str(monthly),
+                                      key=f"{prefix}-monthly")
+    with second:
+        monthly_unit_value = st.text_input("Jednostka", monthly_unit or "",
+                                           key=f"{prefix}-monthly-unit")
+    return peak_value, peak_unit_value, monthly_value, monthly_unit_value
+
+
+def _render_product_operations(composition, details: ProductDetails, selection) -> None:
+    mode_key = f"location-mode-{details.product_id}"
+    if st.button("+ Dodaj miejsce stosowania", key=f"add-location-{details.product_id}"):
+        st.session_state[mode_key] = "add"
+    selected_rows = selection.selection.rows if selection is not None else []
+    if selected_rows and selected_rows[0] < len(details.usage_locations):
+        if st.button("Edytuj przypisanie", key=f"edit-location-{details.product_id}"):
+            st.session_state[mode_key] = details.usage_locations[selected_rows[0]].location_id
+    mode = st.session_state.get(mode_key)
+    if mode is None:
+        return
+    if mode != "add":
+        location = next((item for item in details.usage_locations if item.location_id == mode), None)
+        if location is not None:
+            _quantity_form(composition, details, location)
+        if st.button("Anuluj", key=f"cancel-location-{details.product_id}"):
+            st.session_state.pop(mode_key, None)
+            st.rerun()
+        return
 
     locations = composition.list_usage_locations()
     available = [
@@ -262,6 +307,7 @@ def _render_product_operations(composition, details: ProductDetails) -> None:
         if location.status is UsageLocationStatus.ACTIVE
         and location.location_id not in {item.location_id for item in details.usage_locations}
     ]
+    st.subheader("Dodaj miejsce stosowania")
     if available:
         location_id = st.selectbox(
             "Aktywna lokalizacja",
@@ -272,21 +318,34 @@ def _render_product_operations(composition, details: ProductDetails) -> None:
                 if location.location_id == selected
             ),
         )
-        peak_value = st.text_input("Peak quantity nowego przypisania", "0")
-        peak_unit = st.text_input("Jednostka peak nowego przypisania", "")
+        peak_value, peak_unit, monthly_value, monthly_unit = _quantity_fields(
+            f"add-location-{details.product_id}", "0", "", None, None
+        )
         if st.button("Przypisz lokalizację", key=f"assign-{details.product_id}"):
             try:
+                monthly_quantity = _decimal(monthly_value, "Zużycie miesięczne") if monthly_value is not None else None
+                if monthly_quantity is not None and not monthly_unit.strip():
+                    raise ValueError("Jednostka zużycia miesięcznego jest wymagana.")
                 composition.assign_product_usage_location(
                     AssignProductUsageLocationInput(
                         product_id=details.product_id,
                         location_id=location_id,
-                        peak_quantity_value=_decimal(peak_value, "Peak quantity"),
+                        peak_quantity_value=_decimal(peak_value, "Maksymalna ilość na stanowisku"),
                         peak_quantity_unit=peak_unit,
+                        monthly_consumption_value=monthly_quantity,
+                        monthly_consumption_unit=monthly_unit if monthly_quantity is not None else None,
                     )
                 )
+                st.session_state.pop(mode_key, None)
                 st.success("Lokalizacja przypisana.")
+                st.rerun()
             except (ShellInitializationError, ValueError) as error:
                 st.error(str(error))
+    else:
+        st.info("Brak dostępnych aktywnych lokalizacji do przypisania.")
+    if st.button("Anuluj", key=f"cancel-location-{details.product_id}"):
+        st.session_state.pop(mode_key, None)
+        st.rerun()
 
 
 def _render_revision(

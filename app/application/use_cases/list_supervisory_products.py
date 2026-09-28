@@ -23,7 +23,7 @@ class ListSupervisoryProducts:
                 reasons.append("BRAK CURRENT SDS")
             elif not row.current_sds_file_available:
                 reasons.append("BRAK PLIKU SDS")
-            if not row.usage_locations:
+            if row.usage_location_name is None:
                 reasons.append("BRAK MIEJSCA STOSOWANIA")
             if (
                 row.current_bhp_decision_id is not None
@@ -34,5 +34,6 @@ class ListSupervisoryProducts:
                 row, requires_action=bool(reasons), action_reasons=tuple(reasons)
             ))
         return sorted(result, key=lambda row: (
-            row.product_name, row.manufacturer_product_code, row.product_id
+            row.product_name, row.manufacturer_product_code, row.product_id,
+            row.usage_location_name or "",
         ))
