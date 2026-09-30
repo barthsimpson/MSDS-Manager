@@ -18,9 +18,9 @@ class SqlAlchemyProductUsageLocationRepository(ProductUsageLocationRepositoryPor
                 product_id=assignment.product_id,
                 location_id=assignment.location_id,
                 peak_quantity_value=assignment.peak_quantity_value,
-                peak_quantity_unit=assignment.peak_quantity_unit,
+                peak_quantity_unit_id=assignment.peak_quantity_unit_id,
                 monthly_consumption_value=assignment.monthly_consumption_value,
-                monthly_consumption_unit=assignment.monthly_consumption_unit,
+                monthly_consumption_unit_id=assignment.monthly_consumption_unit_id,
             )
         )
 
@@ -33,9 +33,9 @@ class SqlAlchemyProductUsageLocationRepository(ProductUsageLocationRepositoryPor
             )
             .values(
                 peak_quantity_value=assignment.peak_quantity_value,
-                peak_quantity_unit=assignment.peak_quantity_unit,
+                peak_quantity_unit_id=assignment.peak_quantity_unit_id,
                 monthly_consumption_value=assignment.monthly_consumption_value,
-                monthly_consumption_unit=assignment.monthly_consumption_unit,
+                monthly_consumption_unit_id=assignment.monthly_consumption_unit_id,
             )
             .returning(ProductUsageLocationModel.product_id)
         )

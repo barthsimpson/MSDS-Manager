@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy import Engine
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -25,6 +26,8 @@ from app.application.dto import (
     SupervisoryProductRow,
 )
 from app.application.exceptions import EntityNotFoundError
+from app.application.use_cases.import_sds import ImportSds
+from app.domain.models import UnitOfMeasure
 from app.application.use_cases import (
     AssignProductUsageLocation,
     CreateUsageLocation,
@@ -55,14 +58,17 @@ from app.infrastructure.db.repositories import (
     SqlAlchemyBhpDecisionRepository,
     SqlAlchemyBhpDecisionQuery,
     SqlAlchemySupervisoryQuery,
+    SqlAlchemyUnitOfMeasureRepository,
 )
 from app.infrastructure.db.session import (
     create_engine_from_settings,
     create_session_factory,
 )
 from app.infrastructure.db.transactions import PersistenceError, TransactionExecutor
+from app.infrastructure.db.models import ProductModel
 from app.infrastructure.filesystem.pdf_sds_extractor import PdfSdsExtractor
 from app.infrastructure.filesystem.sds_file_validator import SdsFileValidator
+from app.infrastructure.filesystem.sds_pdf_storage import SdsPdfStorage
 from app.infrastructure.filesystem.bhp_evidence_validator import BhpEvidenceValidator
 
 
@@ -156,6 +162,27 @@ class ShellComposition:
             ).execute(data)
         )
 
+    def import_sds(self, data: AcceptSdsInput, original_filename: str, pdf_bytes: bytes) -> str:
+        return ImportSds(SdsPdfStorage(self.sds_root_path)).execute(
+            data, original_filename, pdf_bytes, self.accept_sds
+        )
+
+    def import_sds_revision(
+        self, data: AddSdsRevisionInput, original_filename: str, pdf_bytes: bytes
+    ) -> str:
+        return ImportSds(SdsPdfStorage(self.sds_root_path)).execute(
+            data, original_filename, pdf_bytes, self.accept_sds_revision,
+            self._verify_sds_product,
+        )
+
+    def _verify_sds_product(self, product_id: str) -> None:
+        try:
+            with self.session_factory() as session:
+                if session.scalar(select(ProductModel.product_id).where(ProductModel.product_id == product_id)) is None:
+                    raise ValueError("Selected product does not exist.")
+        except SQLAlchemyError as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
+
     def get_product_details(self, product_id: str) -> ProductDetails:
         try:
             with self.session_factory() as session:
@@ -177,6 +204,13 @@ class ShellComposition:
                 return ListUsageLocations(
                     SqlAlchemyUsageLocationRepository(session)
                 ).execute()
+        except (SQLAlchemyError, OSError, ImportError) as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
+
+    def list_active_units(self) -> tuple[UnitOfMeasure, ...]:
+        try:
+            with self.session_factory() as session:
+                return tuple(SqlAlchemyUnitOfMeasureRepository(session).list_active())
         except (SQLAlchemyError, OSError, ImportError) as error:
             raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
 
@@ -228,6 +262,7 @@ class ShellComposition:
                 SqlAlchemyProductUsageLocationRepository(session),
                 SqlAlchemyUsageLocationRepository(session),
                 SqlAlchemyProductUsageLocationHistoryRepository(session),
+                unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
             ).execute(data)
         )
 
@@ -238,6 +273,7 @@ class ShellComposition:
             lambda session: UpdateProductUsageLocation(
                 SqlAlchemyProductUsageLocationRepository(session),
                 SqlAlchemyProductUsageLocationHistoryRepository(session),
+                unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
             ).execute(data)
         )
 

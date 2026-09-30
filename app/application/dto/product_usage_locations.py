@@ -9,9 +9,9 @@ class AssignProductUsageLocationInput:
     product_id: str
     location_id: str
     peak_quantity_value: Decimal
-    peak_quantity_unit: str
+    peak_quantity_unit_id: str
     monthly_consumption_value: Decimal | None = None
-    monthly_consumption_unit: str | None = None
+    monthly_consumption_unit_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +19,6 @@ class UpdateProductUsageLocationInput:
     product_id: str
     location_id: str
     peak_quantity_value: Decimal
-    peak_quantity_unit: str
+    peak_quantity_unit_id: str
     monthly_consumption_value: Decimal | None = None
-    monthly_consumption_unit: str | None = None
+    monthly_consumption_unit_id: str | None = None

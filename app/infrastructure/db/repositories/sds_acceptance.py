@@ -58,7 +58,7 @@ class SqlAlchemySdsAcceptanceRepository(SdsAcceptanceRepositoryPort):
             SdsDocumentModel(
                 sds_id=sds_id,
                 product_id=product.product_id,
-                original_filename=Path(data.source_relative_path).name,
+                original_filename=data.original_filename or Path(data.source_relative_path).name,
                 relative_path=data.source_relative_path,
                 issue_date=data.issue_date,
                 revision=data.revision,

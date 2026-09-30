@@ -19,7 +19,7 @@ def business_row_count() -> int:
             return sum(
                 connection.execute(select(func.count()).select_from(table)).scalar_one()
                 for name, table in metadata.tables.items()
-                if name != "alembic_version"
+                if name not in {"alembic_version", "unit_of_measure"}
             )
     finally:
         engine.dispose()

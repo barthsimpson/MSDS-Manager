@@ -87,8 +87,8 @@ def render_bhp_decision(composition: ShellComposition) -> None:
         st.text(f"Plik: {Path(product.sds_filename).name}")
         st.text("Status dokumentu: CURRENT")
     with sds_metadata:
-        st.text(f"Rewizja: {product.sds_revision or 'Brak danych'}")
-        st.text(f"Data SDS: {product.sds_issue_date or 'Brak danych'}")
+        st.text(f"Rewizja SDS: {product.sds_revision or 'Brak danych'}")
+        st.text(f"Data wydania / rewizji SDS: {product.sds_issue_date or 'Brak danych'}")
     evidence_files = composition.list_bhp_evidence_files()
     _render_current_decision(composition, product.sds_id, evidence_files)
 

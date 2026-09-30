@@ -121,6 +121,10 @@ def test_bhp_decision_without_evidence_does_not_register() -> None:
 def test_evidence_shows_filename_and_keeps_relative_path_for_write() -> None:
     composition = FakeComposition(evidence=("archiwum/decision.pdf",))
     app = _app(composition).run()
+    assert any(
+        item.value == "Data wydania / rewizji SDS: 2026-01-01"
+        for item in app.text
+    )
 
     assert app.selectbox(key="bhp-evidence").options == ["decision.pdf"]
     assert any(item.value == "Plik dostępny" for item in app.caption)

@@ -3,7 +3,7 @@
 from collections import defaultdict
 
 from sqlalchemy import and_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.application.dto import SupervisoryProductRow
 from app.application.exceptions import SupervisoryReadError
@@ -19,6 +19,7 @@ from app.infrastructure.db.models import (
     ProductUsageLocationModel,
     SdsDocumentModel,
     UsageLocationModel,
+    UnitOfMeasureModel,
 )
 
 
@@ -84,17 +85,21 @@ class SqlAlchemySupervisoryQuery(SupervisoryQueryPort):
             return []
 
         locations: dict[str, list[dict]] = defaultdict(list)
+        peak_unit = aliased(UnitOfMeasureModel)
+        monthly_unit = aliased(UnitOfMeasureModel)
         for location in self._session.execute(
             select(
                 ProductUsageLocationModel.product_id,
                 UsageLocationModel.location_name.label("usage_location_name"),
                 ProductUsageLocationModel.peak_quantity_value,
-                ProductUsageLocationModel.peak_quantity_unit,
+                peak_unit.code.label("peak_quantity_unit"),
                 ProductUsageLocationModel.monthly_consumption_value,
-                ProductUsageLocationModel.monthly_consumption_unit,
+                monthly_unit.code.label("monthly_consumption_unit"),
             )
             .join(UsageLocationModel,
                   ProductUsageLocationModel.location_id == UsageLocationModel.location_id)
+            .join(peak_unit, ProductUsageLocationModel.peak_quantity_unit_id == peak_unit.unit_id)
+            .outerjoin(monthly_unit, ProductUsageLocationModel.monthly_consumption_unit_id == monthly_unit.unit_id)
             .where(UsageLocationModel.status == UsageLocationStatus.ACTIVE)
             .order_by(ProductUsageLocationModel.product_id,
                       UsageLocationModel.location_name, UsageLocationModel.location_id)

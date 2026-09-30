@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import pytest
 from sqlalchemy import delete, select
@@ -37,11 +37,13 @@ from app.infrastructure.db.models import (
     ProductModel,
     ProductUsageLocationModel,
     UsageLocationModel,
+    UnitOfMeasureModel,
 )
 from app.infrastructure.db.repositories import (
     SqlAlchemyProductRepository,
     SqlAlchemyProductUsageLocationRepository,
     SqlAlchemyUsageLocationRepository,
+    SqlAlchemyUnitOfMeasureRepository,
 )
 from app.infrastructure.db.session import (
     create_engine_from_settings,
@@ -70,6 +72,10 @@ def ids() -> tuple[str, str, str]:
         f"task010-product-{suffix}",
         f"task010-location-{suffix}",
     )
+
+
+def unit_id(code: str) -> str:
+    return str(uuid5(NAMESPACE_URL, f"msds-manager/unit-of-measure/{code}"))
 
 
 def seed_product(
@@ -153,9 +159,9 @@ def test_product_repository_reads_details_and_commits_only_admin_fields(
                     product_id=product_id,
                     location_id=location_id,
                     peak_quantity_value=Decimal("2.50"),
-                    peak_quantity_unit="kg",
+                    peak_quantity_unit_id=unit_id("kg"),
                     monthly_consumption_value=Decimal("10"),
-                    monthly_consumption_unit="l",
+                    monthly_consumption_unit_id=unit_id("l"),
                 )
             )
         )
@@ -303,12 +309,13 @@ def test_assignment_vertical_slice_preserves_decimal_and_composite_identity(
             lambda session: AssignProductUsageLocation(
                 SqlAlchemyProductUsageLocationRepository(session),
                 SqlAlchemyUsageLocationRepository(session),
+                unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
             ).execute(
                 AssignProductUsageLocationInput(
                     product_id=product_id,
                     location_id=location_id,
                     peak_quantity_value=Decimal("0"),
-                    peak_quantity_unit="kg",
+                    peak_quantity_unit_id=unit_id("kg"),
                 )
             )
         )
@@ -317,15 +324,16 @@ def test_assignment_vertical_slice_preserves_decimal_and_composite_identity(
 
         updated = executor.execute(
             lambda session: UpdateProductUsageLocation(
-                SqlAlchemyProductUsageLocationRepository(session)
+                SqlAlchemyProductUsageLocationRepository(session),
+                unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
             ).execute(
                 UpdateProductUsageLocationInput(
                     product_id=product_id,
                     location_id=location_id,
                     peak_quantity_value=Decimal("3.25"),
-                    peak_quantity_unit="kg",
+                    peak_quantity_unit_id=unit_id("kg"),
                     monthly_consumption_value=Decimal("0"),
-                    monthly_consumption_unit="l",
+                    monthly_consumption_unit_id=unit_id("l"),
                 )
             )
         )
@@ -341,9 +349,9 @@ def test_assignment_vertical_slice_preserves_decimal_and_composite_identity(
             )
             assert stored.peak_quantity_value == Decimal("3.25")
             assert isinstance(stored.peak_quantity_value, Decimal)
-            assert stored.peak_quantity_unit == "kg"
+            assert stored.peak_quantity_unit_id == unit_id("kg")
             assert stored.monthly_consumption_value == Decimal("0")
-            assert stored.monthly_consumption_unit == "l"
+            assert stored.monthly_consumption_unit_id == unit_id("l")
             assert updated.product_id == stored.product_id
             assert updated.location_id == stored.location_id
     finally:
@@ -375,17 +383,17 @@ def test_product_can_be_assigned_to_multiple_active_locations(
                 product_id=product_id,
                 location_id=location_id,
                 peak_quantity_value=Decimal("1.25"),
-                peak_quantity_unit="kg",
+                peak_quantity_unit_id=unit_id("kg"),
                 monthly_consumption_value=None,
-                monthly_consumption_unit=None,
+                monthly_consumption_unit_id=None,
             ),
             AssignProductUsageLocationInput(
                 product_id=product_id,
                 location_id=second_location_id,
                 peak_quantity_value=Decimal("4"),
-                peak_quantity_unit="l",
+                peak_quantity_unit_id=unit_id("l"),
                 monthly_consumption_value=Decimal("12.5"),
-                monthly_consumption_unit="kg",
+                monthly_consumption_unit_id=unit_id("kg"),
             ),
         )
         for data in inputs:
@@ -393,6 +401,7 @@ def test_product_can_be_assigned_to_multiple_active_locations(
                 lambda session, data=data: AssignProductUsageLocation(
                     SqlAlchemyProductUsageLocationRepository(session),
                     SqlAlchemyUsageLocationRepository(session),
+                    unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
                 ).execute(data)
             )
 
@@ -446,12 +455,13 @@ def test_assignment_to_inactive_location_is_rejected_before_repository_write(
                 lambda session: AssignProductUsageLocation(
                     SqlAlchemyProductUsageLocationRepository(session),
                     SqlAlchemyUsageLocationRepository(session),
+                    unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
                 ).execute(
                     AssignProductUsageLocationInput(
                         product_id=product_id,
                         location_id=location_id,
                         peak_quantity_value=Decimal("1"),
-                        peak_quantity_unit="kg",
+                        peak_quantity_unit_id=unit_id("kg"),
                     )
                 )
             )
@@ -490,13 +500,14 @@ def test_missing_location_and_assignment_use_application_not_found_errors(
     with pytest.raises(EntityNotFoundError):
         executor.execute(
             lambda session: UpdateProductUsageLocation(
-                SqlAlchemyProductUsageLocationRepository(session)
+                SqlAlchemyProductUsageLocationRepository(session),
+                unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
             ).execute(
                 UpdateProductUsageLocationInput(
                     product_id=product_id,
                     location_id=location_id,
                     peak_quantity_value=Decimal("1"),
-                    peak_quantity_unit="kg",
+                    peak_quantity_unit_id=unit_id("kg"),
                 )
             )
         )
@@ -552,9 +563,9 @@ def test_postgresql_quantity_check_rejects_invalid_repository_write_and_rolls_ba
             product_id=product_id,
             location_id=location_id,
             peak_quantity_value=Decimal("-1"),
-            peak_quantity_unit="kg",
+            peak_quantity_unit_id=unit_id("kg"),
             monthly_consumption_value=None,
-            monthly_consumption_unit=None,
+            monthly_consumption_unit_id=None,
         ),
     )
 

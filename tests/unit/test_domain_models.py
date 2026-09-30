@@ -1,5 +1,6 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from uuid import NAMESPACE_URL, uuid5
 
 from app.domain.enums import (
     BhpDecisionStatus,
@@ -70,7 +71,7 @@ def test_catalog_and_usage_models_can_be_created() -> None:
         product_id=product.product_id,
         location_id=location.location_id,
         peak_quantity_value=Decimal("2.50"),
-        peak_quantity_unit="kg",
+        peak_quantity_unit_id=str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/kg")),
     )
 
     assert product.manufacturer_id == manufacturer.manufacturer_id

@@ -20,6 +20,7 @@ class AddSdsRevision:
         accepted_data = AddSdsRevisionInput(
             product_id=data.product_id,
             source_relative_path=data.source_relative_path,
+            original_filename=data.original_filename,
             issue_date=data.issue_date,
             revision=data.revision,
             safety_profile=data.safety_profile,

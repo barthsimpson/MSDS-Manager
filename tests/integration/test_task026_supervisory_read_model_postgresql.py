@@ -5,7 +5,7 @@ from dataclasses import replace
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import pytest
 from sqlalchemy import Engine, event, insert, select
@@ -110,8 +110,12 @@ def location(session, product_id, name, *, status=UsageLocationStatus.ACTIVE,
     ))
     session.execute(insert(ProductUsageLocationModel).values(
         product_id=product_id, location_id=location_id, peak_quantity_value=peak,
-        peak_quantity_unit=unit, monthly_consumption_value=monthly,
-        monthly_consumption_unit=unit if monthly is not None else None,
+        peak_quantity_unit_id=str(uuid5(NAMESPACE_URL, f"msds-manager/unit-of-measure/{unit}")),
+        monthly_consumption_value=monthly,
+        monthly_consumption_unit_id=(
+            str(uuid5(NAMESPACE_URL, f"msds-manager/unit-of-measure/{unit}"))
+            if monthly is not None else None
+        ),
     ))
 
 

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from sqlalchemy import select
 
@@ -83,9 +83,9 @@ def test_product_identity_edit_preserves_sds_bhp_and_usage() -> None:
                         product_id=product_id,
                         location_id=location_id,
                         peak_quantity_value=Decimal("25"),
-                        peak_quantity_unit="l",
+                        peak_quantity_unit_id=str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/l")),
                         monthly_consumption_value=Decimal("300"),
-                        monthly_consumption_unit="l/month",
+                        monthly_consumption_unit_id=str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/l")),
                     ),
                     DecisionEvidenceModel(
                         evidence_id=evidence_id,

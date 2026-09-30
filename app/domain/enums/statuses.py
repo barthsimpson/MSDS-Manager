@@ -15,6 +15,17 @@ class UsageLocationStatus(StrEnum):
     INACTIVE = "INACTIVE"
 
 
+class UnitCategory(StrEnum):
+    VOLUME = "VOLUME"
+    MASS = "MASS"
+    COUNT = "COUNT"
+
+
+class UnitStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
 class SdsDocumentStatus(StrEnum):
     CURRENT = "CURRENT"
     ARCHIVED = "ARCHIVED"

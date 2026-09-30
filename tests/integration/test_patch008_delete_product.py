@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import pytest
 from sqlalchemy import delete, select
@@ -133,17 +133,17 @@ def test_delete_product_removes_owned_records_and_preserves_shared_data(
                         product_id=product_id,
                         location_id=location_id,
                         peak_quantity_value=Decimal("25"),
-                        peak_quantity_unit="l",
+                        peak_quantity_unit_id=str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/l")),
                         monthly_consumption_value=Decimal("300"),
-                        monthly_consumption_unit="l/month",
+                        monthly_consumption_unit_id=str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/l")),
                     ),
                     ProductUsageLocationModel(
                         product_id=other_product_id,
                         location_id=location_id,
                         peak_quantity_value=Decimal("5"),
-                        peak_quantity_unit="l",
+                        peak_quantity_unit_id=str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/l")),
                         monthly_consumption_value=None,
-                        monthly_consumption_unit=None,
+                        monthly_consumption_unit_id=None,
                     ),
                     DecisionEvidenceModel(
                         evidence_id=evidence_id,

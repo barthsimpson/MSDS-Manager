@@ -1,10 +1,15 @@
 from decimal import Decimal
+from uuid import NAMESPACE_URL, uuid5
 
 import pytest
 
 from app.domain.exceptions import MixedQuantityUnitsError
 from app.domain.models import ProductUsageLocation
 from app.domain.rules import sum_product_quantity
+
+
+def unit_id(code: str) -> str:
+    return str(uuid5(NAMESPACE_URL, f"msds-manager/unit-of-measure/{code}"))
 
 
 def usage(
@@ -18,11 +23,11 @@ def usage(
         product_id="product-1",
         location_id=location_id,
         peak_quantity_value=Decimal(peak_value),
-        peak_quantity_unit=peak_unit,
+        peak_quantity_unit_id=unit_id(peak_unit),
         monthly_consumption_value=(
             Decimal(monthly_value) if monthly_value is not None else None
         ),
-        monthly_consumption_unit=monthly_unit,
+        monthly_consumption_unit_id=unit_id(monthly_unit) if monthly_unit else None,
     )
 
 
@@ -40,7 +45,7 @@ def test_peak_zero_and_missing_monthly_consumption_are_valid() -> None:
 
     assert assignment.peak_quantity_value == Decimal("0")
     assert assignment.monthly_consumption_value is None
-    assert assignment.monthly_consumption_unit is None
+    assert assignment.monthly_consumption_unit_id is None
     assert sum_product_quantity([assignment]) == Decimal("0")
 
 
@@ -49,7 +54,7 @@ def test_monthly_consumption_with_unit_is_valid(monthly_value: str) -> None:
     assignment = usage("a", "1", "kg", monthly_value, "l")
 
     assert assignment.monthly_consumption_value == Decimal(monthly_value)
-    assert assignment.monthly_consumption_unit == "l"
+    assert assignment.monthly_consumption_unit_id == unit_id("l")
 
 
 def test_rejects_negative_peak_quantity() -> None:

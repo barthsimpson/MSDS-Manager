@@ -9,6 +9,8 @@ from .statuses import (
     ProductUsageStatus,
     SafetyInformationStatus,
     SdsDocumentStatus,
+    UnitCategory,
+    UnitStatus,
     UsageLocationStatus,
 )
 
@@ -21,5 +23,7 @@ __all__ = [
     "ProductUsageStatus",
     "SafetyInformationStatus",
     "SdsDocumentStatus",
+    "UnitCategory",
+    "UnitStatus",
     "UsageLocationStatus",
 ]

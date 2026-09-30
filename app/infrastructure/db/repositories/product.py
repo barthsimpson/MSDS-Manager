@@ -1,7 +1,7 @@
 """SQLAlchemy adapter for existing-product application contracts."""
 
 from sqlalchemy import delete, func, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from uuid import uuid4
 
 from app.application.dto import (
@@ -24,6 +24,7 @@ from app.infrastructure.db.models import (
     SdsComponentModel,
     SdsDocumentModel,
     UsageLocationModel,
+    UnitOfMeasureModel,
 )
 
 
@@ -72,13 +73,17 @@ class SqlAlchemyProductRepository(ProductRepositoryPort):
             return None
 
         product, manufacturer = row
+        peak_unit = aliased(UnitOfMeasureModel)
+        monthly_unit = aliased(UnitOfMeasureModel)
         location_rows = self._session.execute(
-            select(ProductUsageLocationModel, UsageLocationModel)
+            select(ProductUsageLocationModel, UsageLocationModel, peak_unit.code, monthly_unit.code)
             .join(
                 UsageLocationModel,
                 ProductUsageLocationModel.location_id
                 == UsageLocationModel.location_id,
             )
+            .join(peak_unit, ProductUsageLocationModel.peak_quantity_unit_id == peak_unit.unit_id)
+            .outerjoin(monthly_unit, ProductUsageLocationModel.monthly_consumption_unit_id == monthly_unit.unit_id)
             .where(ProductUsageLocationModel.product_id == product_id)
             .order_by(ProductUsageLocationModel.location_id)
         ).all()
@@ -88,11 +93,13 @@ class SqlAlchemyProductRepository(ProductRepositoryPort):
                 location_name=location.location_name,
                 location_status=location.status,
                 peak_quantity_value=assignment.peak_quantity_value,
-                peak_quantity_unit=assignment.peak_quantity_unit,
+                peak_quantity_unit=peak_code,
                 monthly_consumption_value=assignment.monthly_consumption_value,
-                monthly_consumption_unit=assignment.monthly_consumption_unit,
+                monthly_consumption_unit=monthly_code,
+                peak_quantity_unit_id=assignment.peak_quantity_unit_id,
+                monthly_consumption_unit_id=assignment.monthly_consumption_unit_id,
             )
-            for assignment, location in location_rows
+            for assignment, location, peak_code, monthly_code in location_rows
         )
         sds_count = self._session.scalar(
             select(func.count()).select_from(SdsDocumentModel).where(

@@ -21,9 +21,9 @@ class SqlAlchemyProductUsageLocationHistoryRepository(
                 product_id=snapshot.product_id,
                 location_id=snapshot.location_id,
                 peak_quantity_value=snapshot.peak_quantity_value,
-                peak_quantity_unit=snapshot.peak_quantity_unit,
+                peak_quantity_unit_id=snapshot.peak_quantity_unit_id,
                 monthly_consumption_value=snapshot.monthly_consumption_value,
-                monthly_consumption_unit=snapshot.monthly_consumption_unit,
+                monthly_consumption_unit_id=snapshot.monthly_consumption_unit_id,
                 changed_at=snapshot.changed_at,
             )
         )
@@ -42,9 +42,9 @@ class SqlAlchemyProductUsageLocationHistoryRepository(
                 product_id=row.product_id,
                 location_id=row.location_id,
                 peak_quantity_value=row.peak_quantity_value,
-                peak_quantity_unit=row.peak_quantity_unit,
+                peak_quantity_unit_id=row.peak_quantity_unit_id,
                 monthly_consumption_value=row.monthly_consumption_value,
-                monthly_consumption_unit=row.monthly_consumption_unit,
+                monthly_consumption_unit_id=row.monthly_consumption_unit_id,
                 history_id=row.history_id,
                 changed_at=row.changed_at,
             )
@@ -65,9 +65,9 @@ class SqlAlchemyProductUsageLocationHistoryRepository(
                 product_id=row.product_id,
                 location_id=row.location_id,
                 peak_quantity_value=row.peak_quantity_value,
-                peak_quantity_unit=row.peak_quantity_unit,
+                peak_quantity_unit_id=row.peak_quantity_unit_id,
                 monthly_consumption_value=row.monthly_consumption_value,
-                monthly_consumption_unit=row.monthly_consumption_unit,
+                monthly_consumption_unit_id=row.monthly_consumption_unit_id,
                 history_id=row.history_id,
                 changed_at=row.changed_at,
             )
@@ -93,9 +93,9 @@ class SqlAlchemyProductUsageLocationHistoryRepository(
                 product_id=row.product_id,
                 location_id=row.location_id,
                 peak_quantity_value=row.peak_quantity_value,
-                peak_quantity_unit=row.peak_quantity_unit,
+                peak_quantity_unit_id=row.peak_quantity_unit_id,
                 monthly_consumption_value=row.monthly_consumption_value,
-                monthly_consumption_unit=row.monthly_consumption_unit,
+                monthly_consumption_unit_id=row.monthly_consumption_unit_id,
                 history_id=row.history_id,
                 changed_at=row.changed_at,
             )

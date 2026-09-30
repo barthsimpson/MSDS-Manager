@@ -7,6 +7,7 @@ from .catalog import (
     ProductModel,
     ProductUsageLocationHistoryModel,
     ProductUsageLocationModel,
+    UnitOfMeasureModel,
     UsageLocationHistoryModel,
     UsageLocationModel,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "ProductModel",
     "ProductUsageLocationHistoryModel",
     "ProductUsageLocationModel",
+    "UnitOfMeasureModel",
     "SafetyProfileModel",
     "SdsComponentModel",
     "SdsDocumentModel",

@@ -5,11 +5,14 @@ from pathlib import Path
 import streamlit as st
 
 from app.application.dto import AcceptSdsInput, SdsComponentDraft, SdsDraft, SdsSafetyProfileDraft
+from app.application.use_cases.import_sds import SdsImportCleanupError
 from app.domain.enums import SafetyInformationStatus
+from app.infrastructure.db.transactions import PersistenceError
 from app.presentation.streamlit.composition import ShellComposition, ShellInitializationError
 
 
 DRAFT_KEY = "add_sds_draft"
+UPLOAD_KEY = "add_sds_pending_upload"
 STATUS_OPTIONS = ["", *(status.value for status in SafetyInformationStatus)]
 
 
@@ -111,15 +114,16 @@ def _render_components(components: list[SdsComponentDraft]) -> list[SdsComponent
 def _render_draft(composition: ShellComposition) -> None:
     draft = st.session_state[DRAFT_KEY]
     st.subheader("Dokument SDS")
-    st.caption(f"Plik: {Path(draft.source_relative_path).name}")
+    upload = st.session_state.get(UPLOAD_KEY)
+    st.caption(f"Plik: {upload[0] if upload else Path(draft.source_relative_path).name}")
     document_date, document_revision = st.columns(2)
     with document_date:
         draft.issue_date = st.date_input(
-            "Data dokumentu", value=draft.issue_date, key="sds-issue-date"
+            "Data wydania / rewizji SDS", value=draft.issue_date, key="sds-issue-date"
         )
     with document_revision:
         draft.revision = st.text_input(
-            "Rewizja", draft.revision or "", key="sds-revision"
+            "Rewizja SDS", draft.revision or "", key="sds-revision"
         ) or None
 
     st.subheader("Produkt")
@@ -155,13 +159,19 @@ def _render_draft(composition: ShellComposition) -> None:
     save, cancel = st.columns(2)
     if save.button("Zapisz / Akceptuj", key="accept-sds"):
         try:
-            composition.accept_sds(AcceptSdsInput(**vars(draft)))
+            data = AcceptSdsInput(**vars(draft))
+            if upload:
+                composition.import_sds(data, upload[0], upload[1])
+            else:
+                composition.accept_sds(data)
             del st.session_state[DRAFT_KEY]
+            st.session_state.pop(UPLOAD_KEY, None)
             st.success("SDS został zapisany. Produkt oczekuje na decyzję BHP.")
-        except (ShellInitializationError, ValueError, OSError) as error:
+        except (ShellInitializationError, SdsImportCleanupError, PersistenceError, ValueError, OSError) as error:
             st.error(str(error))
     if cancel.button("Anuluj", key="cancel-sds"):
         del st.session_state[DRAFT_KEY]
+        st.session_state.pop(UPLOAD_KEY, None)
         st.rerun()
 
 
@@ -171,10 +181,17 @@ def render_add_sds(composition: ShellComposition) -> None:
         _render_draft(composition)
         return
     st.subheader("Dokument SDS")
+    uploaded = st.file_uploader("Wybierz plik PDF z komputera", type=["pdf"], key="sds-upload")
+    if st.button("Wypełnij dane dla wybranego PDF", key="manual-upload-sds", disabled=uploaded is None):
+        st.session_state[UPLOAD_KEY] = (uploaded.name, uploaded.getvalue())
+        st.session_state[DRAFT_KEY] = SdsDraft(source_relative_path="")
+        st.rerun()
+
     files = composition.list_sds_files()
     if not files:
-        st.info("Brak dostępnych plików PDF.")
+        st.info("Brak plików PDF w dotychczasowym katalogu SDS.")
         return
+    st.caption("Lub wybierz plik już obecny w katalogu SDS")
     st.caption("* pole wymagane")
     selected = st.selectbox(
         "Plik PDF *", files, format_func=lambda path: Path(path).name,

@@ -2,6 +2,7 @@ from dataclasses import asdict, dataclass, replace
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
+from uuid import NAMESPACE_URL, uuid5
 
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -12,7 +13,8 @@ from app.application.dto import (
     ProductUsageLocationDetails,
     SupervisoryProductRow,
 )
-from app.domain.enums import BhpDecisionStatus, ProductUsageStatus, UsageLocationStatus
+from app.domain.enums import BhpDecisionStatus, ProductUsageStatus, UnitCategory, UnitStatus, UsageLocationStatus
+from app.domain.models import UnitOfMeasure
 from app.presentation.streamlit import product_registry
 
 
@@ -29,6 +31,9 @@ class FakeComposition:
 
     def list_usage_locations(self):
         return []
+
+    def list_active_units(self):
+        return active_units()
 
     def list_supervisory_products(self):
         return []
@@ -49,6 +54,17 @@ def make_product(product_id: str, manufacturer_name: str) -> ProductListItem:
     )
 
 
+def unit_id(code: str) -> str:
+    return str(uuid5(NAMESPACE_URL, f"msds-manager/unit-of-measure/{code}"))
+
+
+def active_units() -> tuple[UnitOfMeasure, ...]:
+    return (
+        UnitOfMeasure(unit_id("kg"), "kg", "kilogram", UnitCategory.MASS, UnitStatus.ACTIVE),
+        UnitOfMeasure(unit_id("l"), "l", "litr", UnitCategory.VOLUME, UnitStatus.ACTIVE),
+    )
+
+
 def make_details(product: ProductListItem) -> ProductDetails:
     return ProductDetails(
         **asdict(product),
@@ -60,7 +76,8 @@ def make_details(product: ProductListItem) -> ProductDetails:
                 peak_quantity_value=Decimal("0"),
                 peak_quantity_unit="kg",
                 monthly_consumption_value=None,
-                monthly_consumption_unit="l/month",
+                monthly_consumption_unit=None,
+                peak_quantity_unit_id=unit_id("kg"),
             ),
             ProductUsageLocationDetails(
                 location_id="location-b",
@@ -69,7 +86,9 @@ def make_details(product: ProductListItem) -> ProductDetails:
                 peak_quantity_value=Decimal("12.50"),
                 peak_quantity_unit="l",
                 monthly_consumption_value=Decimal("0"),
-                monthly_consumption_unit="kg/month",
+                monthly_consumption_unit="kg",
+                peak_quantity_unit_id=unit_id("l"),
+                monthly_consumption_unit_id=unit_id("kg"),
             ),
         ),
     )
@@ -81,7 +100,9 @@ def _app(composition: FakeComposition):
 
         render_product_registry(current_composition)
 
-    return AppTest.from_function(render, args=(composition,))
+    app = AppTest.from_function(render, args=(composition,))
+    app.default_timeout = 10
+    return app
 
 
 def test_product_registry_uses_product_id_and_renders_all_location_values(
@@ -109,9 +130,10 @@ def test_product_registry_uses_product_id_and_renders_all_location_values(
     assert app.exception == []
     assert composition.requested_ids == ["product-2"]
     assert app.dataframe[0].value.columns.tolist() == [
-        "Produkt", "Kod producenta", "Producent", "Status", "SDS", "BHP"
+        "Produkt", "Kod producenta", "Producent", "Status", "SDS", "Rewizja SDS", "BHP"
     ]
     assert "product_id" not in app.dataframe[0].value.columns
+    assert app.dataframe[0].value["Rewizja SDS"].tolist() == ["—", "—"]
     assert app.dataframe[1].value.to_dict("records") == [
         {
             "Lokalizacja": "Linia A",
@@ -125,7 +147,7 @@ def test_product_registry_uses_product_id_and_renders_all_location_values(
             "Maksymalna ilość": "12.50",
             "Jednostka": "l",
             "Zużycie miesięczne": "0",
-            "Jednostka zużycia": "kg/month",
+            "Jednostka zużycia": "kg",
         },
     ]
     assert any(item.value == "Producent: Manufacturer B" for item in app.text)
@@ -150,8 +172,9 @@ def test_registry_empty_and_no_selection_have_controlled_states() -> None:
     assert composition.requested_ids == []
 
 
+@pytest.mark.parametrize("revision, expected", [("2", "2"), (None, "—")])
 def test_registry_presents_existing_sds_bhp_and_preserves_domain_status(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, revision: str | None, expected: str,
 ) -> None:
     product = make_product("product-1", "Manufacturer")
     row = SupervisoryProductRow(
@@ -167,7 +190,7 @@ def test_registry_presents_existing_sds_bhp_and_preserves_domain_status(
         current_sds_id="sds-id",
         current_sds_filename="current.pdf",
         current_sds_issue_date=None,
-        current_sds_revision="2",
+        current_sds_revision=revision,
         current_sds_file_available=True,
         current_bhp_decision_id="decision-id",
         current_bhp_decision_status=BhpDecisionStatus.APPROVED,
@@ -184,14 +207,18 @@ def test_registry_presents_existing_sds_bhp_and_preserves_domain_status(
     assert app.dataframe[0].value.to_dict("records") == [{
         "Produkt": "Solvent", "Kod producenta": "CODE-product-1",
         "Producent": "Manufacturer", "Status": "Aktywny",
-        "SDS": "CURRENT", "BHP": "Zatwierdzona",
+        "SDS": "CURRENT", "Rewizja SDS": expected, "BHP": "Zatwierdzona",
     }]
+    assert "sds-id" not in app.dataframe[0].value.to_string()
     assert product.usage_status is ProductUsageStatus.ACTIVE
 
 
+@pytest.mark.parametrize("uploaded", [False, True])
 @pytest.mark.parametrize("document_date", [None, date(2026, 2, 3)])
+@pytest.mark.parametrize("document_revision", [None, "2.0"])
 def test_revision_action_passes_selected_product_id(
-    monkeypatch: pytest.MonkeyPatch, document_date: date | None
+    monkeypatch: pytest.MonkeyPatch, document_date: date | None,
+    document_revision: str | None, uploaded: bool,
 ) -> None:
     class FakeStreamlit:
         session_state = {}
@@ -221,15 +248,25 @@ def test_revision_action_passes_selected_product_id(
             pass
 
         @staticmethod
+        def file_uploader(_label: str, **_kwargs):
+            return SimpleNamespace(name="local.pdf", getvalue=lambda: b"%PDF-1.4\n") if uploaded else None
+
+        @staticmethod
+        def caption(_message: str) -> None:
+            pass
+
+        @staticmethod
         def selectbox(_label: str, options, **_kwargs):
             return options[0]
 
         @staticmethod
-        def text_input(_label: str, *_args, **_kwargs) -> str:
-            return "2.0"
+        def text_input(label: str, *_args, **_kwargs) -> str:
+            assert label == "Rewizja SDS"
+            return document_revision or ""
 
         @staticmethod
-        def date_input(_label: str, **kwargs) -> date | None:
+        def date_input(label: str, **kwargs) -> date | None:
+            assert label == "Data wydania / rewizji SDS"
             assert kwargs["value"] is None
             return document_date
 
@@ -252,6 +289,7 @@ def test_revision_action_passes_selected_product_id(
     class RevisionComposition:
         def __init__(self) -> None:
             self.accepted = None
+            self.imported = None
 
         @staticmethod
         def list_sds_files() -> tuple[str, ...]:
@@ -259,6 +297,10 @@ def test_revision_action_passes_selected_product_id(
 
         def accept_sds_revision(self, data) -> str:
             self.accepted = data
+            return "new-sds-id"
+
+        def import_sds_revision(self, data, filename, contents) -> str:
+            self.imported = (data, filename, contents)
             return "new-sds-id"
 
     composition = RevisionComposition()
@@ -271,15 +313,41 @@ def test_revision_action_passes_selected_product_id(
     )
     product_registry._render_revision(composition, make_details(product), current_sds)
 
-    assert composition.accepted is not None
-    assert composition.accepted.product_id == "existing-product"
-    assert composition.accepted.source_relative_path == "revisions/new.pdf"
-    assert composition.accepted.issue_date == document_date
+    accepted = composition.imported[0] if uploaded else composition.accepted
+    assert accepted is not None
+    assert accepted.product_id == "existing-product"
+    assert accepted.source_relative_path == "revisions/new.pdf"
+    assert accepted.issue_date == document_date
+    assert accepted.revision == document_revision
+    if uploaded:
+        assert composition.imported[1:] == ("local.pdf", b"%PDF-1.4\n")
+        assert composition.accepted is None
     assert "Produkt: Solvent" in FakeStreamlit.shown_text
-    assert "Aktualny SDS: current.pdf; rewizja: 1" in FakeStreamlit.shown_text
+    assert "Aktualny SDS: current.pdf; rewizja SDS: 1" in FakeStreamlit.shown_text
     assert FakeStreamlit.messages == [
         "Nowa rewizja została zapisana. Produkt oczekuje na decyzję BHP."
     ]
+
+
+def test_revision_app_shows_upload_without_existing_sds_files() -> None:
+    product = make_product("existing-product", "Manufacturer")
+
+    class RevisionComposition:
+        @staticmethod
+        def list_sds_files() -> tuple[str, ...]:
+            return ()
+
+    def render(composition, details) -> None:
+        from app.presentation.streamlit.product_registry import _render_revision
+
+        _render_revision(composition, details)
+
+    app = AppTest.from_function(render, args=(RevisionComposition(), make_details(product))).run()
+    app.button(key="add-revision-existing-product").click().run()
+
+    assert app.exception == []
+    assert app.file_uploader[0].label == "Wybierz plik PDF z komputera"
+    assert app.button(key="save-revision-existing-product")
 
 
 def test_identity_edit_action_passes_selected_product_id(
@@ -424,6 +492,9 @@ def test_add_and_edit_assignment_use_distinct_forms_and_existing_use_cases():
             return [SimpleNamespace(location_id="location-c", location_name="Hala C",
                                     status=UsageLocationStatus.ACTIVE)]
 
+        def list_active_units(self):
+            return active_units()
+
         def assign_product_usage_location(self, data):
             self.assigned = data
 
@@ -444,23 +515,118 @@ def test_add_and_edit_assignment_use_distinct_forms_and_existing_use_cases():
     assert not app.exception
     assert "Edytuj przypisanie" not in {item.value for item in app.subheader}
     app.text_input(key="add-location-p1-peak").set_value("25")
-    app.text_input(key="add-location-p1-peak-unit").set_value("l")
+    assert set(app.selectbox(key="add-location-p1-peak-unit").options) == {"kg", "l"}
+    assert "add-location-p1-peak-unit" not in {item.key for item in app.text_input}
+    app.selectbox(key="add-location-p1-peak-unit").set_value("l")
     app.checkbox(key="add-location-p1-monthly-enabled").check().run()
     app.text_input(key="add-location-p1-monthly").set_value("0")
-    app.text_input(key="add-location-p1-monthly-unit").set_value("l")
+    app.selectbox(key="add-location-p1-monthly-unit").set_value("l")
     app.button(key="assign-p1").click().run()
     assert not app.exception
     assert composition.assigned.product_id == "p1"
     assert composition.assigned.location_id == "location-c"
     assert composition.assigned.peak_quantity_value == Decimal("25")
+    assert composition.assigned.peak_quantity_unit_id == unit_id("l")
     assert composition.assigned.monthly_consumption_value == Decimal("0")
+    assert composition.assigned.monthly_consumption_unit_id == unit_id("l")
 
     app.button(key="edit-location-p1").click().run()
     assert not app.exception
     assert "Dodaj miejsce stosowania" not in {item.value for item in app.subheader}
     assert app.text_input(key="edit-location-p1-location-b-peak").value == "12.50"
+    assert set(app.selectbox(key="edit-location-p1-location-b-peak-unit").options) == {"kg", "l"}
     app.button(key="quantity-p1-location-b").click().run()
     assert not app.exception
     assert composition.updated.product_id == "p1"
     assert composition.updated.location_id == "location-b"
     assert composition.updated.monthly_consumption_value == Decimal("0")
+    assert composition.updated.peak_quantity_unit_id == unit_id("l")
+    assert composition.updated.monthly_consumption_unit_id == unit_id("kg")
+
+
+def test_add_requires_selected_units_and_preserves_empty_monthly():
+    details = ProductDetails(**asdict(make_product("p2", "Manufacturer")), usage_locations=())
+
+    class Composition:
+        assigned = None
+
+        def list_usage_locations(self):
+            return [SimpleNamespace(
+                location_id="location-c", location_name="Hala C",
+                status=UsageLocationStatus.ACTIVE,
+            )]
+
+        def list_active_units(self):
+            return active_units()
+
+        def assign_product_usage_location(self, data):
+            self.assigned = data
+
+    composition = Composition()
+
+    def render(current_composition, current_details):
+        from app.presentation.streamlit.product_registry import _render_product_operations
+        _render_product_operations(current_composition, current_details, None)
+
+    app = AppTest.from_function(render, args=(composition, details))
+    app.default_timeout = 10
+    app.run().button(key="add-location-p2").click().run()
+    assert app.selectbox(key="add-location-p2-peak-unit").value is None
+    assert all(str(unit_id("kg")) not in option for option in
+               app.selectbox(key="add-location-p2-peak-unit").options)
+    app.button(key="assign-p2").click().run()
+    assert composition.assigned is None
+    assert "Jednostka maksymalnej ilości" in app.error[0].value
+
+    app.selectbox(key="add-location-p2-peak-unit").set_value("kg").run()
+    app.checkbox(key="add-location-p2-monthly-enabled").check().run()
+    app.text_input(key="add-location-p2-monthly").set_value("0")
+    app.button(key="assign-p2").click().run()
+    assert composition.assigned is None
+    assert "Jednostka zużycia miesięcznego" in app.error[0].value
+
+    app.checkbox(key="add-location-p2-monthly-enabled").uncheck().run()
+    app.button(key="assign-p2").click().run()
+    assert composition.assigned.peak_quantity_unit_id == unit_id("kg")
+    assert composition.assigned.monthly_consumption_value is None
+    assert composition.assigned.monthly_consumption_unit_id is None
+
+
+def test_inactive_existing_unit_is_readable_but_not_editable():
+    product = make_product("p3", "Manufacturer")
+    inactive_location = replace(
+        make_details(product).usage_locations[0],
+        peak_quantity_unit="g",
+        peak_quantity_unit_id=unit_id("g"),
+    )
+    details = ProductDetails(**asdict(product), usage_locations=(inactive_location,))
+
+    class Composition:
+        updated = None
+
+        def list_active_units(self):
+            return active_units()
+
+        def update_product_usage_location(self, data):
+            self.updated = data
+
+    composition = Composition()
+    selection = SimpleNamespace(selection=SimpleNamespace(rows=[0]))
+
+    def render(current_composition, current_details, current_selection):
+        from app.presentation.streamlit.product_registry import _render_product_operations
+        _render_product_operations(current_composition, current_details, current_selection)
+
+    app = AppTest.from_function(render, args=(composition, details, selection))
+    app.default_timeout = 10
+    app.run().button(key="edit-location-p3").click().run()
+    peak = app.selectbox(key="edit-location-p3-location-a-peak-unit")
+    assert peak.options == ["kg", "l"]
+    assert peak.value is None
+    app.button(key="quantity-p3-location-a").click().run()
+    assert composition.updated is None
+    assert "Jednostka maksymalnej ilości" in app.error[0].value
+    app.selectbox(key="edit-location-p3-location-a-peak-unit").set_value("kg").run()
+    app.button(key="quantity-p3-location-a").click().run()
+    assert composition.updated.peak_quantity_unit_id == unit_id("kg")
+    assert product_registry._location_row(inactive_location)["Jednostka"] == "g"

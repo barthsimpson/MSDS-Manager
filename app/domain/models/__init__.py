@@ -6,6 +6,7 @@ from .catalog import (
     ProductHistory,
     ProductUsageLocation,
     ProductUsageLocationHistory,
+    UnitOfMeasure,
     UsageLocation,
     UsageLocationHistory,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "ProductHistory",
     "ProductUsageLocation",
     "ProductUsageLocationHistory",
+    "UnitOfMeasure",
     "SafetyProfile",
     "SdsComponent",
     "SdsDocument",

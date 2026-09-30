@@ -32,7 +32,7 @@ def _table_row(row: SupervisoryProductRow) -> dict[str, str]:
         "Zużycie mies.": _value(row.monthly_consumption_value),
         "Jedn. zużycia": _value(row.monthly_consumption_unit),
         "SDS": sds,
-        "Data SDS": row.current_sds_issue_date.isoformat() if row.current_sds_issue_date else "—",
+        "Data wydania / rewizji SDS": row.current_sds_issue_date.isoformat() if row.current_sds_issue_date else "—",
         "Rewizja SDS": row.current_sds_revision or "—",
         "Status produktu": row.usage_status.value,
         "BHP": (

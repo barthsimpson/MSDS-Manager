@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from uuid import NAMESPACE_URL, uuid5
 
 import pytest
 
@@ -15,9 +16,24 @@ from app.application.dto import (
     UpdateProductAdministrativeDataInput,
     UpdateProductUsageLocationInput,
 )
-from app.domain.enums import ProductUsageStatus, UsageLocationStatus
+from app.domain.enums import ProductUsageStatus, UnitCategory, UnitStatus, UsageLocationStatus
 from app.domain.models import ProductHistory, ProductUsageLocationHistory, UsageLocationHistory
-from app.domain.models import ProductUsageLocation, UsageLocation
+from app.domain.models import ProductUsageLocation, UnitOfMeasure, UsageLocation
+
+
+def unit_id(code: str) -> str:
+    return str(uuid5(NAMESPACE_URL, f"msds-manager/unit-of-measure/{code}"))
+
+
+class FakeUnitRepository:
+    def get_by_id(self, requested_id: str) -> UnitOfMeasure | None:
+        for code in ("kg", "l"):
+            if requested_id == unit_id(code):
+                return UnitOfMeasure(requested_id, code, code, UnitCategory.MASS, UnitStatus.ACTIVE)
+        return None
+
+    def list_active(self) -> list[UnitOfMeasure]:
+        return []
 
 
 class FakeProductRepository:
@@ -143,24 +159,25 @@ def test_assignment_and_quantity_history_keep_decimal_and_optional_values():
         assignment_repo,
         FakeUsageLocationRepository(location),
         history_repo,
+        unit_repository=FakeUnitRepository(),
     ).execute(
         AssignProductUsageLocationInput(
             product_id="product-1",
             location_id="location-1",
             peak_quantity_value=Decimal("0"),
-            peak_quantity_unit="kg",
+            peak_quantity_unit_id=unit_id("kg"),
             monthly_consumption_value=None,
-            monthly_consumption_unit=None,
+            monthly_consumption_unit_id=None,
         )
     )
-    UpdateProductUsageLocation(assignment_repo, history_repo).execute(
+    UpdateProductUsageLocation(assignment_repo, history_repo, unit_repository=FakeUnitRepository()).execute(
         UpdateProductUsageLocationInput(
             product_id="product-1",
             location_id="location-1",
             peak_quantity_value=Decimal("4.5"),
-            peak_quantity_unit="kg",
+            peak_quantity_unit_id=unit_id("kg"),
             monthly_consumption_value=Decimal("0"),
-            monthly_consumption_unit="l",
+            monthly_consumption_unit_id=unit_id("l"),
         )
     )
 
@@ -171,4 +188,4 @@ def test_assignment_and_quantity_history_keep_decimal_and_optional_values():
     assert assignment_snapshot.monthly_consumption_value is None
     assert quantity_snapshot.peak_quantity_value == Decimal("4.5")
     assert quantity_snapshot.monthly_consumption_value == Decimal("0")
-    assert quantity_snapshot.monthly_consumption_unit == "l"
+    assert quantity_snapshot.monthly_consumption_unit_id == unit_id("l")

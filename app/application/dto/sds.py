@@ -56,6 +56,7 @@ class ExtractedSdsData:
 @dataclass
 class SdsDraft:
     source_relative_path: str
+    original_filename: str | None = None
     product_name: str | None = None
     manufacturer_product_code: str | None = None
     manufacturer_name: str | None = None
@@ -82,6 +83,7 @@ class AddSdsRevisionInput:
 
     product_id: str
     source_relative_path: str
+    original_filename: str | None = None
     issue_date: date | None = None
     revision: str | None = None
     safety_profile: SdsSafetyProfileDraft = field(

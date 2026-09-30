@@ -51,7 +51,7 @@ def test_complete_active_row_and_read_only_controls(row):
         "Produkt": "Produkt A", "Producent": "Producent A", "Kod producenta": "A-1",
         "Lokalizacja": "Hala A", "Maks. ilość": "25", "Jedn.": "l",
         "Zużycie mies.": "0", "Jedn. zużycia": "l",
-        "SDS": "CURRENT", "Data SDS": "2026-01-02",
+        "SDS": "CURRENT", "Data wydania / rewizji SDS": "2026-01-02",
         "Rewizja SDS": "2", "Status produktu": "ACTIVE", "BHP": "APPROVED",
         "Warunki / uwagi": "Stosować wentylację.", "Wymaga działania": "OK",
     }]
@@ -157,5 +157,5 @@ def test_missing_values_and_status_formatting(row, changes, expected_sds, expect
     assert values["BHP"] == expected_bhp
     assert values["Lokalizacja"] == "Brak"
     for column in ("Maks. ilość", "Jedn.", "Zużycie mies.", "Jedn. zużycia",
-                   "Warunki / uwagi", "Data SDS", "Rewizja SDS"):
+                   "Warunki / uwagi", "Data wydania / rewizji SDS", "Rewizja SDS"):
         assert values[column] == "—"

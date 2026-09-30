@@ -29,6 +29,8 @@ class ProductUsageLocationDetails:
     peak_quantity_unit: str
     monthly_consumption_value: Decimal | None
     monthly_consumption_unit: str | None
+    peak_quantity_unit_id: str | None = None
+    monthly_consumption_unit_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

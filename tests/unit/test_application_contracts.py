@@ -1,5 +1,6 @@
 from dataclasses import fields
 from decimal import Decimal
+from uuid import NAMESPACE_URL, uuid5
 
 import pytest
 
@@ -13,7 +14,7 @@ from app.application.dto import (
     UpdateProductAdministrativeDataInput,
     UpdateProductUsageLocationInput,
 )
-from app.application.exceptions import EntityNotFoundError, InactiveUsageLocationError
+from app.application.exceptions import EntityNotFoundError, InactiveUnitOfMeasureError, InactiveUsageLocationError
 from app.application.use_cases import (
     AssignProductUsageLocation,
     CreateUsageLocation,
@@ -26,8 +27,26 @@ from app.application.use_cases import (
     UpdateProductAdministrativeData,
     UpdateProductUsageLocation,
 )
-from app.domain.enums import ProductUsageStatus, UsageLocationStatus
-from app.domain.models import Manufacturer, ProductUsageLocation, UsageLocation
+from app.domain.enums import ProductUsageStatus, UnitCategory, UnitStatus, UsageLocationStatus
+from app.domain.models import Manufacturer, ProductUsageLocation, UnitOfMeasure, UsageLocation
+
+
+def unit_id(code: str) -> str:
+    return str(uuid5(NAMESPACE_URL, f"msds-manager/unit-of-measure/{code}"))
+
+
+class FakeUnitRepository:
+    def __init__(self, status: UnitStatus = UnitStatus.ACTIVE) -> None:
+        self.units = {
+            code: UnitOfMeasure(unit_id(code), code, code, UnitCategory.MASS, status)
+            for code in ("kg", "l")
+        }
+
+    def get_by_id(self, requested_id: str) -> UnitOfMeasure | None:
+        return next((unit for unit in self.units.values() if unit.unit_id == requested_id), None)
+
+    def list_active(self) -> list[UnitOfMeasure]:
+        return [unit for unit in self.units.values() if unit.status is UnitStatus.ACTIVE]
 
 
 class FakeProductRepository:
@@ -228,13 +247,13 @@ def test_assign_product_to_active_location() -> None:
         product_id="product-1",
         location_id="location-1",
         peak_quantity_value=Decimal("0"),
-        peak_quantity_unit="kg",
+        peak_quantity_unit_id=unit_id("kg"),
         monthly_consumption_value=None,
-        monthly_consumption_unit=None,
+        monthly_consumption_unit_id=None,
     )
 
     result = AssignProductUsageLocation(
-        assignment_repository, location_repository
+        assignment_repository, location_repository, unit_repository=FakeUnitRepository()
     ).execute(data)
 
     assert result.peak_quantity_value == Decimal("0")
@@ -251,12 +270,12 @@ def test_assign_product_to_inactive_location_is_rejected() -> None:
         product_id="product-1",
         location_id="location-1",
         peak_quantity_value=Decimal("1"),
-        peak_quantity_unit="kg",
+        peak_quantity_unit_id=unit_id("kg"),
     )
 
     with pytest.raises(InactiveUsageLocationError):
         AssignProductUsageLocation(
-            assignment_repository, location_repository
+            assignment_repository, location_repository, unit_repository=FakeUnitRepository()
         ).execute(data)
 
     assert assignment_repository.added == []
@@ -271,17 +290,17 @@ def test_assignment_accepts_monthly_zero_and_independent_units() -> None:
         product_id="product-1",
         location_id="location-1",
         peak_quantity_value=Decimal("2.5"),
-        peak_quantity_unit="kg",
+        peak_quantity_unit_id=unit_id("kg"),
         monthly_consumption_value=Decimal("0"),
-        monthly_consumption_unit="l",
+        monthly_consumption_unit_id=unit_id("l"),
     )
 
     result = AssignProductUsageLocation(
-        assignment_repository, location_repository
+        assignment_repository, location_repository, unit_repository=FakeUnitRepository()
     ).execute(data)
 
-    assert result.peak_quantity_unit == "kg"
-    assert result.monthly_consumption_unit == "l"
+    assert result.peak_quantity_unit_id == unit_id("kg")
+    assert result.monthly_consumption_unit_id == unit_id("l")
     assert result.monthly_consumption_value == Decimal("0")
 
 
@@ -289,9 +308,9 @@ def test_assignment_accepts_monthly_zero_and_independent_units() -> None:
     ("peak", "monthly", "monthly_unit", "error_type"),
     [
         (Decimal("-0.01"), None, None, ValueError),
-        (Decimal("1"), Decimal("-0.01"), "kg", ValueError),
+        (Decimal("1"), Decimal("-0.01"), unit_id("kg"), ValueError),
         (Decimal("1"), Decimal("1"), None, ValueError),
-        (Decimal("1"), None, "kg", ValueError),
+        (Decimal("1"), None, unit_id("kg"), ValueError),
         (1.0, None, None, TypeError),
     ],
 )
@@ -309,14 +328,14 @@ def test_assignment_uses_existing_domain_quantity_validation(
         product_id="product-1",
         location_id="location-1",
         peak_quantity_value=peak,
-        peak_quantity_unit="kg",
+        peak_quantity_unit_id=unit_id("kg"),
         monthly_consumption_value=monthly,
-        monthly_consumption_unit=monthly_unit,
+        monthly_consumption_unit_id=monthly_unit,
     )
 
     with pytest.raises(error_type):
         AssignProductUsageLocation(
-            assignment_repository, location_repository
+            assignment_repository, location_repository, unit_repository=FakeUnitRepository()
         ).execute(data)
 
     assert assignment_repository.added == []
@@ -328,12 +347,95 @@ def test_update_assignment_preserves_composite_identity() -> None:
         product_id="product-1",
         location_id="location-1",
         peak_quantity_value=Decimal("3"),
-        peak_quantity_unit="kg",
+        peak_quantity_unit_id=unit_id("kg"),
         monthly_consumption_value=Decimal("7"),
-        monthly_consumption_unit="l",
+        monthly_consumption_unit_id=unit_id("l"),
     )
 
-    result = UpdateProductUsageLocation(repository).execute(data)
+    result = UpdateProductUsageLocation(repository, unit_repository=FakeUnitRepository()).execute(data)
 
     assert (result.product_id, result.location_id) == ("product-1", "location-1")
     assert repository.updated == [result]
+
+
+@pytest.mark.parametrize("operation", ["assign", "update"])
+@pytest.mark.parametrize("unit_state,error_type", [
+    ("missing", EntityNotFoundError),
+    ("inactive", InactiveUnitOfMeasureError),
+])
+def test_quantity_write_requires_existing_active_units(
+    operation: str, unit_state: str, error_type: type[Exception]
+) -> None:
+    units = FakeUnitRepository(UnitStatus.INACTIVE if unit_state == "inactive" else UnitStatus.ACTIVE)
+    peak_id = unit_id("kg") if unit_state == "inactive" else unit_id("unknown")
+    repository = FakeProductUsageLocationRepository()
+    if operation == "assign":
+        use_case = AssignProductUsageLocation(
+            repository,
+            FakeUsageLocationRepository(UsageLocation("location-1", "Line")),
+            unit_repository=units,
+        )
+        data = AssignProductUsageLocationInput("product-1", "location-1", Decimal("1"), peak_id)
+    else:
+        use_case = UpdateProductUsageLocation(repository, unit_repository=units)
+        data = UpdateProductUsageLocationInput("product-1", "location-1", Decimal("1"), peak_id)
+    with pytest.raises(error_type):
+        use_case.execute(data)
+    assert repository.added == []
+    assert repository.updated == []
+
+
+@pytest.mark.parametrize("operation", ["assign", "update"])
+@pytest.mark.parametrize("monthly_code,error_type", [
+    ("l", InactiveUnitOfMeasureError),
+    ("unknown", EntityNotFoundError),
+])
+def test_monthly_unit_is_validated_independently(
+    operation: str, monthly_code: str, error_type: type[Exception]
+) -> None:
+    units = FakeUnitRepository()
+    units.units["l"] = UnitOfMeasure(
+        unit_id("l"), "l", "l", UnitCategory.VOLUME, UnitStatus.INACTIVE
+    )
+    repository = FakeProductUsageLocationRepository()
+    if operation == "assign":
+        use_case = AssignProductUsageLocation(
+            repository,
+            FakeUsageLocationRepository(UsageLocation("location-1", "Line")),
+            unit_repository=units,
+        )
+        data = AssignProductUsageLocationInput(
+            "product-1", "location-1", Decimal("1"), unit_id("kg"),
+            Decimal("0"), unit_id(monthly_code),
+        )
+    else:
+        use_case = UpdateProductUsageLocation(repository, unit_repository=units)
+        data = UpdateProductUsageLocationInput(
+            "product-1", "location-1", Decimal("1"), unit_id("kg"),
+            Decimal("0"), unit_id(monthly_code),
+        )
+    with pytest.raises(error_type):
+        use_case.execute(data)
+    assert repository.added == []
+    assert repository.updated == []
+
+
+@pytest.mark.parametrize("operation", ["assign", "update"])
+def test_peak_unit_is_required_before_persistence(operation: str) -> None:
+    repository = FakeProductUsageLocationRepository()
+    if operation == "assign":
+        use_case = AssignProductUsageLocation(
+            repository,
+            FakeUsageLocationRepository(UsageLocation("location-1", "Line")),
+            unit_repository=FakeUnitRepository(),
+        )
+        data = AssignProductUsageLocationInput("product-1", "location-1", Decimal("1"), None)
+    else:
+        use_case = UpdateProductUsageLocation(
+            repository, unit_repository=FakeUnitRepository()
+        )
+        data = UpdateProductUsageLocationInput("product-1", "location-1", Decimal("1"), None)
+    with pytest.raises(TypeError, match="peak_quantity_unit_id"):
+        use_case.execute(data)
+    assert repository.added == []
+    assert repository.updated == []

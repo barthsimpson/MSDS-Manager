@@ -18,7 +18,10 @@ from app.application.dto import (
     UpdateProductUsageLocationInput,
 )
 from app.application.exceptions import SupervisoryReadError
+from app.application.use_cases.import_sds import SdsImportCleanupError
 from app.domain.enums import UsageLocationStatus
+from app.domain.models import UnitOfMeasure
+from app.infrastructure.db.transactions import PersistenceError
 from app.presentation.streamlit.composition import (
     ShellComposition,
     ShellInitializationError,
@@ -68,6 +71,10 @@ def _registry_row(product: ProductListItem, row: SupervisoryProductRow | None) -
         "Producent": product.manufacturer_name,
         "Status": _status_label(product.usage_status),
         "SDS": _sds_label(row),
+        "Rewizja SDS": (
+            row.current_sds_revision or "—"
+            if row is not None and row.current_sds_id is not None else "—"
+        ),
         "BHP": _bhp_label(row),
     }
 
@@ -175,8 +182,8 @@ def _render_details(
     st.text(f"Stan: {_sds_label(row)}")
     if row is not None and row.current_sds_id is not None:
         st.text(f"Plik: {row.current_sds_filename or MISSING_VALUE}")
-        st.text(f"Data SDS: {row.current_sds_issue_date or MISSING_VALUE}")
-        st.text(f"Rewizja: {row.current_sds_revision or MISSING_VALUE}")
+        st.text(f"Data wydania / rewizji SDS: {row.current_sds_issue_date or MISSING_VALUE}")
+        st.text(f"Rewizja SDS: {row.current_sds_revision or MISSING_VALUE}")
 
     st.markdown("#### BHP")
     st.text(f"Stan: {_bhp_label(row)}")
@@ -229,28 +236,32 @@ def _decimal(value: str, label: str) -> Decimal:
         raise ValueError(f"{label}: podaj poprawną liczbę.") from None
 
 
-def _quantity_form(composition, details: ProductDetails, location) -> None:
+def _quantity_form(
+    composition, details: ProductDetails, location, units: tuple[UnitOfMeasure, ...]
+) -> None:
     st.subheader("Edytuj przypisanie")
     st.text(f"Lokalizacja: {location.location_name}")
     prefix = f"edit-location-{details.product_id}-{location.location_id}"
     # Parse only on save so an incomplete field does not interrupt rendering.
     peak_value, peak_unit, monthly_value, monthly_unit = _quantity_fields(
-        prefix, str(location.peak_quantity_value), location.peak_quantity_unit,
-        location.monthly_consumption_value, location.monthly_consumption_unit,
+        prefix, str(location.peak_quantity_value), location.peak_quantity_unit_id,
+        location.monthly_consumption_value, location.monthly_consumption_unit_id, units,
     )
     if st.button("Zapisz przypisanie", key=f"quantity-{details.product_id}-{location.location_id}"):
         try:
-            monthly_quantity = _decimal(monthly_value, "Zużycie miesięczne") if monthly_value is not None else None
-            if monthly_quantity is not None and not monthly_unit.strip():
+            if peak_unit is None:
+                raise ValueError("Jednostka maksymalnej ilości jest wymagana.")
+            monthly_quantity = _optional_monthly_quantity(monthly_value)
+            if monthly_quantity is not None and monthly_unit is None:
                 raise ValueError("Jednostka zużycia miesięcznego jest wymagana.")
             composition.update_product_usage_location(
                 UpdateProductUsageLocationInput(
                     product_id=details.product_id,
                     location_id=location.location_id,
                     peak_quantity_value=_decimal(peak_value, "Maksymalna ilość na stanowisku"),
-                    peak_quantity_unit=peak_unit,
+                    peak_quantity_unit_id=peak_unit.unit_id,
                     monthly_consumption_value=monthly_quantity,
-                    monthly_consumption_unit=monthly_unit if monthly_quantity is not None else None,
+                    monthly_consumption_unit_id=monthly_unit.unit_id if monthly_quantity is not None else None,
                 )
             )
             st.session_state.pop(f"location-mode-{details.product_id}", None)
@@ -260,24 +271,43 @@ def _quantity_form(composition, details: ProductDetails, location) -> None:
             st.error(str(error))
 
 
-def _quantity_fields(prefix, peak, peak_unit, monthly, monthly_unit):
+def _optional_monthly_quantity(value: str | None) -> Decimal | None:
+    return None if value is None or not value.strip() else _decimal(value, "Zużycie miesięczne")
+
+
+def _quantity_fields(
+    prefix: str, peak: str, peak_unit_id: str | None,
+    monthly: Decimal | None, monthly_unit_id: str | None,
+    units: tuple[UnitOfMeasure, ...],
+):
     first, second = st.columns(2)
     with first:
         peak_value = st.text_input("Maksymalna ilość na stanowisku", peak, key=f"{prefix}-peak")
     with second:
-        peak_unit_value = st.text_input("Jednostka", peak_unit, key=f"{prefix}-peak-unit")
+        peak_unit = st.selectbox(
+            "Jednostka", units,
+            index=next((i for i, unit in enumerate(units) if unit.unit_id == peak_unit_id), None),
+            format_func=lambda unit: unit.code,
+            placeholder="Wybierz jednostkę",
+            key=f"{prefix}-peak-unit",
+        )
     monthly_enabled = st.checkbox("Podaj miesięczne zużycie", value=monthly is not None,
                                   key=f"{prefix}-monthly-enabled")
     if not monthly_enabled:
-        return peak_value, peak_unit_value, None, None
+        return peak_value, peak_unit, None, None
     first, second = st.columns(2)
     with first:
         monthly_value = st.text_input("Zużycie miesięczne", "" if monthly is None else str(monthly),
                                       key=f"{prefix}-monthly")
     with second:
-        monthly_unit_value = st.text_input("Jednostka", monthly_unit or "",
-                                           key=f"{prefix}-monthly-unit")
-    return peak_value, peak_unit_value, monthly_value, monthly_unit_value
+        monthly_unit = st.selectbox(
+            "Jednostka", units,
+            index=next((i for i, unit in enumerate(units) if unit.unit_id == monthly_unit_id), None),
+            format_func=lambda unit: unit.code,
+            placeholder="Wybierz jednostkę",
+            key=f"{prefix}-monthly-unit",
+        )
+    return peak_value, peak_unit, monthly_value, monthly_unit
 
 
 def _render_product_operations(composition, details: ProductDetails, selection) -> None:
@@ -291,10 +321,15 @@ def _render_product_operations(composition, details: ProductDetails, selection) 
     mode = st.session_state.get(mode_key)
     if mode is None:
         return
+    try:
+        units = composition.list_active_units()
+    except ShellInitializationError as error:
+        st.error(str(error))
+        return
     if mode != "add":
         location = next((item for item in details.usage_locations if item.location_id == mode), None)
         if location is not None:
-            _quantity_form(composition, details, location)
+            _quantity_form(composition, details, location, units)
         if st.button("Anuluj", key=f"cancel-location-{details.product_id}"):
             st.session_state.pop(mode_key, None)
             st.rerun()
@@ -319,21 +354,23 @@ def _render_product_operations(composition, details: ProductDetails, selection) 
             ),
         )
         peak_value, peak_unit, monthly_value, monthly_unit = _quantity_fields(
-            f"add-location-{details.product_id}", "0", "", None, None
+            f"add-location-{details.product_id}", "0", None, None, None, units
         )
         if st.button("Przypisz lokalizację", key=f"assign-{details.product_id}"):
             try:
-                monthly_quantity = _decimal(monthly_value, "Zużycie miesięczne") if monthly_value is not None else None
-                if monthly_quantity is not None and not monthly_unit.strip():
+                if peak_unit is None:
+                    raise ValueError("Jednostka maksymalnej ilości jest wymagana.")
+                monthly_quantity = _optional_monthly_quantity(monthly_value)
+                if monthly_quantity is not None and monthly_unit is None:
                     raise ValueError("Jednostka zużycia miesięcznego jest wymagana.")
                 composition.assign_product_usage_location(
                     AssignProductUsageLocationInput(
                         product_id=details.product_id,
                         location_id=location_id,
                         peak_quantity_value=_decimal(peak_value, "Maksymalna ilość na stanowisku"),
-                        peak_quantity_unit=peak_unit,
+                        peak_quantity_unit_id=peak_unit.unit_id,
                         monthly_consumption_value=monthly_quantity,
-                        monthly_consumption_unit=monthly_unit if monthly_quantity is not None else None,
+                        monthly_consumption_unit_id=monthly_unit.unit_id if monthly_quantity is not None else None,
                     )
                 )
                 st.session_state.pop(mode_key, None)
@@ -364,43 +401,48 @@ def _render_revision(
     if current_sds is not None and current_sds.current_sds_id is not None:
         st.text(
             f"Aktualny SDS: {current_sds.current_sds_filename or MISSING_VALUE}; "
-            f"rewizja: {current_sds.current_sds_revision or MISSING_VALUE}"
+            f"rewizja SDS: {current_sds.current_sds_revision or MISSING_VALUE}"
         )
     else:
         st.text("Aktualny SDS: Brak danych")
-    files = composition.list_sds_files()
-    if not files:
-        st.info("Brak dostępnych plików PDF.")
-        return
-    selected = st.selectbox(
-        "Plik PDF *",
-        files,
-        format_func=lambda path: Path(path).name,
-        key=f"revision-file-{details.product_id}",
+    uploaded = st.file_uploader(
+        "Wybierz plik PDF z komputera", type=["pdf"], key=f"revision-upload-{details.product_id}"
     )
+    files = composition.list_sds_files()
+    selected = None
+    if files:
+        st.caption("Lub wybierz plik już obecny w katalogu SDS")
+        selected = st.selectbox(
+            "Plik PDF *", files, format_func=lambda path: Path(path).name,
+            key=f"revision-file-{details.product_id}",
+        )
     revision_column, date_column = st.columns(2)
     with revision_column:
         revision = st.text_input(
-            "Rewizja", key=f"revision-value-{details.product_id}"
+            "Rewizja SDS", key=f"revision-value-{details.product_id}"
         )
     with date_column:
         issue_date = st.date_input(
-            "Data dokumentu", value=None, key=f"revision-date-{details.product_id}"
+            "Data wydania / rewizji SDS", value=None, key=f"revision-date-{details.product_id}"
         )
     save, cancel = st.columns(2)
     if save.button("Zapisz nową rewizję", key=f"save-revision-{details.product_id}"):
         try:
-            composition.accept_sds_revision(
-                AddSdsRevisionInput(
-                    product_id=details.product_id,
-                    source_relative_path=selected,
-                    revision=revision or None,
-                    issue_date=issue_date,
-                )
+            if uploaded is None and selected is None:
+                raise ValueError("Wybierz plik PDF SDS.")
+            data = AddSdsRevisionInput(
+                product_id=details.product_id,
+                source_relative_path=selected or "",
+                revision=revision or None,
+                issue_date=issue_date,
             )
+            if uploaded is not None:
+                composition.import_sds_revision(data, uploaded.name, uploaded.getvalue())
+            else:
+                composition.accept_sds_revision(data)
             st.session_state.pop(active_key, None)
             st.success("Nowa rewizja została zapisana. Produkt oczekuje na decyzję BHP.")
-        except (ShellInitializationError, ValueError, OSError) as error:
+        except (ShellInitializationError, SdsImportCleanupError, PersistenceError, ValueError, OSError) as error:
             st.error(str(error))
     if cancel.button(
         "Anuluj nową rewizję", key=f"cancel-revision-{details.product_id}"

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, Uuid, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.enums import ProductUsageStatus, UsageLocationStatus
@@ -68,6 +68,27 @@ class UsageLocationModel(Base):
     )
 
 
+class UnitOfMeasureModel(Base):
+    __tablename__ = "unit_of_measure"
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_unit_of_measure_code"),
+        CheckConstraint(
+            "category IN ('VOLUME', 'MASS', 'COUNT')",
+            name="ck_unit_of_measure_category",
+        ),
+        CheckConstraint(
+            "status IN ('ACTIVE', 'INACTIVE')",
+            name="ck_unit_of_measure_status",
+        ),
+    )
+
+    unit_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    code: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    category: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class ProductUsageLocationModel(Base):
     __tablename__ = "product_usage_locations"
     __table_args__ = (
@@ -82,9 +103,9 @@ class ProductUsageLocationModel(Base):
         ),
         CheckConstraint(
             "(monthly_consumption_value IS NULL "
-            "AND monthly_consumption_unit IS NULL) "
+            "AND monthly_consumption_unit_id IS NULL) "
             "OR (monthly_consumption_value IS NOT NULL "
-            "AND monthly_consumption_unit IS NOT NULL)",
+            "AND monthly_consumption_unit_id IS NOT NULL)",
             name="ck_product_usage_locations_monthly_consumption_pair",
         ),
     )
@@ -96,12 +117,18 @@ class ProductUsageLocationModel(Base):
         ForeignKey("usage_locations.location_id"), primary_key=True
     )
     peak_quantity_value: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
-    peak_quantity_unit: Mapped[str] = mapped_column(String, nullable=False)
+    peak_quantity_unit_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False),
+        ForeignKey("unit_of_measure.unit_id", name="fk_product_usage_locations_peak_quantity_unit_id"),
+        nullable=False,
+    )
     monthly_consumption_value: Mapped[Decimal | None] = mapped_column(
         Numeric, nullable=True
     )
-    monthly_consumption_unit: Mapped[str | None] = mapped_column(
-        String, nullable=True
+    monthly_consumption_unit_id: Mapped[str | None] = mapped_column(
+        Uuid(as_uuid=False),
+        ForeignKey("unit_of_measure.unit_id", name="fk_product_usage_locations_monthly_consumption_unit_id"),
+        nullable=True,
     )
 
     product: Mapped[ProductModel] = relationship(
@@ -155,18 +182,29 @@ class ProductUsageLocationHistoryModel(Base):
             "location_id",
             "changed_at",
         ),
+        CheckConstraint(
+            "(monthly_consumption_value IS NULL AND monthly_consumption_unit_id IS NULL) "
+            "OR (monthly_consumption_value IS NOT NULL AND monthly_consumption_unit_id IS NOT NULL)",
+            name="ck_product_usage_location_history_monthly_consumption_pair",
+        ),
     )
 
     history_id: Mapped[str] = mapped_column(String, primary_key=True)
     product_id: Mapped[str] = mapped_column(ForeignKey("products.product_id"), nullable=False)
     location_id: Mapped[str] = mapped_column(ForeignKey("usage_locations.location_id"), nullable=False)
     peak_quantity_value: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
-    peak_quantity_unit: Mapped[str] = mapped_column(String, nullable=False)
+    peak_quantity_unit_id: Mapped[str] = mapped_column(
+        Uuid(as_uuid=False),
+        ForeignKey("unit_of_measure.unit_id", name="fk_product_usage_location_history_peak_quantity_unit_id"),
+        nullable=False,
+    )
     monthly_consumption_value: Mapped[Decimal | None] = mapped_column(
         Numeric, nullable=True
     )
-    monthly_consumption_unit: Mapped[str | None] = mapped_column(
-        String, nullable=True
+    monthly_consumption_unit_id: Mapped[str | None] = mapped_column(
+        Uuid(as_uuid=False),
+        ForeignKey("unit_of_measure.unit_id", name="fk_product_usage_location_history_monthly_consumption_unit_id"),
+        nullable=True,
     )
     changed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 

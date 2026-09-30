@@ -11,6 +11,11 @@ class InactiveUsageLocationError(ValueError):
         super().__init__(f"Usage location is inactive: {location_id}")
 
 
+class InactiveUnitOfMeasureError(ValueError):
+    def __init__(self, unit_id: str) -> None:
+        super().__init__(f"Unit of measure is inactive: {unit_id}")
+
+
 class SdsFileNotFoundError(FileNotFoundError):
     pass
 

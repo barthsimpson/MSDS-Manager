@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import pytest
 import streamlit as st
@@ -45,6 +45,7 @@ from app.infrastructure.db.repositories import (
     SqlAlchemyProductUsageLocationRepository,
     SqlAlchemyUsageLocationHistoryRepository,
     SqlAlchemyUsageLocationRepository,
+    SqlAlchemyUnitOfMeasureRepository,
 )
 from app.infrastructure.db.session import (
     create_engine_from_settings,
@@ -216,9 +217,11 @@ def test_task016_sprint2_end_to_end_acceptance(
                 SqlAlchemyProductUsageLocationRepository(session),
                 SqlAlchemyUsageLocationRepository(session),
                 SqlAlchemyProductUsageLocationHistoryRepository(session),
+                unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
             ).execute(
                 AssignProductUsageLocationInput(
-                    product_id, location_a, Decimal("0"), "kg", None, None
+                    product_id, location_a, Decimal("0"),
+                    str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/kg")), None, None
                 )
             )
         )
@@ -227,9 +230,13 @@ def test_task016_sprint2_end_to_end_acceptance(
                 SqlAlchemyProductUsageLocationRepository(session),
                 SqlAlchemyUsageLocationRepository(session),
                 SqlAlchemyProductUsageLocationHistoryRepository(session),
+                unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
             ).execute(
                 AssignProductUsageLocationInput(
-                    product_id, location_b, Decimal("2.50"), "l", Decimal("0"), "kg"
+                    product_id, location_b, Decimal("2.50"),
+                    str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/l")),
+                    Decimal("0"),
+                    str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/kg")),
                 )
             )
         )
@@ -254,9 +261,13 @@ def test_task016_sprint2_end_to_end_acceptance(
             lambda session: UpdateProductUsageLocation(
                 SqlAlchemyProductUsageLocationRepository(session),
                 SqlAlchemyProductUsageLocationHistoryRepository(session),
+                unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
             ).execute(
                 UpdateProductUsageLocationInput(
-                    product_id, location_a, Decimal("3.25"), "kg", Decimal("0"), "l"
+                    product_id, location_a, Decimal("3.25"),
+                    str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/kg")),
+                    Decimal("0"),
+                    str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/l")),
                 )
             )
         )
@@ -272,9 +283,11 @@ def test_task016_sprint2_end_to_end_acceptance(
                     SqlAlchemyProductUsageLocationRepository(session),
                     SqlAlchemyUsageLocationRepository(session),
                     SqlAlchemyProductUsageLocationHistoryRepository(session),
+                    unit_repository=SqlAlchemyUnitOfMeasureRepository(session),
                 ).execute(
                     AssignProductUsageLocationInput(
-                        product_id, location_b, Decimal("1"), "kg", None, None
+                        product_id, location_b, Decimal("1"),
+                        str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/kg")), None, None
                     )
                 )
             )

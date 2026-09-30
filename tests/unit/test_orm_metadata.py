@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 
 from sqlalchemy import Enum as SqlEnum
-from sqlalchemy import CheckConstraint, Float, Numeric
+from sqlalchemy import CheckConstraint, Float, Numeric, Uuid
 
 from app.domain.enums import (
     BhpDecisionStatus,
@@ -32,6 +32,7 @@ EXPECTED_TABLES = {
     "product_history",
     "usage_location_history",
     "product_usage_location_history",
+    "unit_of_measure",
     "sds_documents",
     "bhp_decisions",
     "decision_evidence",
@@ -60,6 +61,7 @@ def test_every_table_has_the_expected_primary_key() -> None:
         "product_history": {"history_id"},
         "usage_location_history": {"history_id"},
         "product_usage_location_history": {"history_id"},
+        "unit_of_measure": {"unit_id"},
         "sds_documents": {"sds_id"},
         "bhp_decisions": {"decision_id"},
         "decision_evidence": {"evidence_id"},
@@ -79,12 +81,14 @@ def test_foreign_keys_match_core_relations() -> None:
     assert foreign_key_targets("product_usage_locations") == {
         "products.product_id",
         "usage_locations.location_id",
+        "unit_of_measure.unit_id",
     }
     assert foreign_key_targets("product_history") == {"products.product_id"}
     assert foreign_key_targets("usage_location_history") == {"usage_locations.location_id"}
     assert foreign_key_targets("product_usage_location_history") == {
         "products.product_id",
         "usage_locations.location_id",
+        "unit_of_measure.unit_id",
     }
     assert foreign_key_targets("sds_documents") == {"products.product_id"}
     assert foreign_key_targets("bhp_decisions") == {
@@ -104,18 +108,18 @@ def test_product_usage_location_is_the_decimal_association_table() -> None:
         "product_id",
         "location_id",
         "peak_quantity_value",
-        "peak_quantity_unit",
+        "peak_quantity_unit_id",
         "monthly_consumption_value",
-        "monthly_consumption_unit",
+        "monthly_consumption_unit_id",
     }
     assert isinstance(table.c.peak_quantity_value.type, Numeric)
     assert isinstance(table.c.monthly_consumption_value.type, Numeric)
     assert not isinstance(table.c.peak_quantity_value.type, Float)
     assert not isinstance(table.c.monthly_consumption_value.type, Float)
     assert not table.c.peak_quantity_value.nullable
-    assert not table.c.peak_quantity_unit.nullable
+    assert not table.c.peak_quantity_unit_id.nullable
     assert table.c.monthly_consumption_value.nullable
-    assert table.c.monthly_consumption_unit.nullable
+    assert table.c.monthly_consumption_unit_id.nullable
 
 
 def test_product_usage_location_quantity_checks_are_present() -> None:
@@ -131,6 +135,23 @@ def test_product_usage_location_quantity_checks_are_present() -> None:
         "ck_product_usage_locations_monthly_consumption_nonnegative",
         "ck_product_usage_locations_monthly_consumption_pair",
     }
+
+
+def test_unit_of_measure_mapping_and_history_references() -> None:
+    unit_table = Base.metadata.tables["unit_of_measure"]
+    assert set(unit_table.columns.keys()) == {"unit_id", "code", "name", "category", "status"}
+    assert isinstance(unit_table.c.unit_id.type, Uuid)
+    assert all(not column.nullable for column in unit_table.columns)
+    assert "uq_unit_of_measure_code" in {constraint.name for constraint in unit_table.constraints}
+    assert {constraint.name for constraint in unit_table.constraints if isinstance(constraint, CheckConstraint)} == {
+        "ck_unit_of_measure_category", "ck_unit_of_measure_status"
+    }
+    history = Base.metadata.tables["product_usage_location_history"]
+    assert "peak_quantity_unit" not in history.c
+    assert "monthly_consumption_unit" not in history.c
+    assert not history.c.peak_quantity_unit_id.nullable
+    assert history.c.monthly_consumption_unit_id.nullable
+    assert isinstance(history.c.peak_quantity_unit_id.type, Uuid)
 
 
 def test_product_waste_fields_are_optional() -> None:

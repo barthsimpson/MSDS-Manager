@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from decimal import Decimal
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import pytest
 from sqlalchemy import Connection, Engine, insert
@@ -199,9 +199,12 @@ def add_product_usage(
             "product_id": product_id,
             "location_id": add_usage_location(connection, label),
             "peak_quantity_value": peak_value,
-            "peak_quantity_unit": "kg",
+            "peak_quantity_unit_id": str(uuid5(NAMESPACE_URL, "msds-manager/unit-of-measure/kg")),
             "monthly_consumption_value": monthly_value,
-            "monthly_consumption_unit": monthly_unit,
+            "monthly_consumption_unit_id": (
+                str(uuid5(NAMESPACE_URL, f"msds-manager/unit-of-measure/{monthly_unit}"))
+                if monthly_unit is not None else None
+            ),
         },
     )
 
