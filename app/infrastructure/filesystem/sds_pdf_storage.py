@@ -1,6 +1,6 @@
 """Create new SDS PDFs inside the configured root, without overwrite."""
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from uuid import UUID, uuid4
 
 
@@ -63,6 +63,31 @@ class SdsPdfStorage:
     def confirm_exists(self, relative_path: str) -> None:
         if not self._owned_path(relative_path).is_file():
             raise FileNotFoundError(f"Brak zapisanego pliku SDS: {relative_path}")
+
+    def resolve_sds_path(self, relative_path: str) -> Path:
+        if not isinstance(relative_path, str) or not relative_path or "\x00" in relative_path:
+            raise ValueError("Niepoprawna ścieżka SDS.")
+        windows_path = PureWindowsPath(relative_path)
+        if windows_path.is_absolute() or windows_path.drive or windows_path.root:
+            raise ValueError("Ścieżka SDS musi być względna.")
+        normalized = relative_path.replace("\\", "/")
+        reference = Path(normalized)
+        if reference.is_absolute() or ".." in reference.parts:
+            raise ValueError("Ścieżka SDS wychodzi poza SDS_ROOT_PATH.")
+        root = self._root_path.resolve()
+        target = (root / reference).resolve()
+        if not target.is_relative_to(root):
+            raise ValueError("Ścieżka SDS wychodzi poza SDS_ROOT_PATH.")
+        return target
+
+    def check_availability(self, relative_path: str) -> bool:
+        return self.resolve_sds_path(relative_path).is_file()
+
+    def read_sds(self, relative_path: str) -> bytes:
+        target = self.resolve_sds_path(relative_path)
+        if not target.is_file():
+            raise FileNotFoundError("Plik SDS jest obecnie niedostępny.")
+        return target.read_bytes()
 
     def remove_unregistered_file(self, relative_path: str) -> None:
         self._owned_path(relative_path).unlink()

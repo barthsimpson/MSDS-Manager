@@ -30,6 +30,7 @@ from app.application.dto import (
 )
 from app.application.exceptions import EntityNotFoundError
 from app.application.use_cases.import_sds import ImportSds
+from app.application.use_cases.get_current_sds_file import CurrentSdsFile, GetCurrentSdsFile
 from app.application.use_cases.bhp_evidence import ImportBhpEvidence, ListBhpEvidence, ReadBhpEvidence
 from app.domain.models import UnitOfMeasure
 from app.application.use_cases import (
@@ -64,6 +65,7 @@ from app.infrastructure.db.repositories import (
     SqlAlchemySupervisoryQuery,
     SqlAlchemyUnitOfMeasureRepository,
 )
+from app.infrastructure.db.repositories.current_sds_query import SqlAlchemyCurrentSdsQuery
 from app.infrastructure.db.session import (
     create_engine_from_settings,
     create_session_factory,
@@ -197,6 +199,15 @@ class ShellComposition:
             data, original_filename, pdf_bytes, self.accept_sds_revision,
             self._verify_sds_product,
         )
+
+    def get_current_sds_file(self, product_id: str) -> CurrentSdsFile | None:
+        try:
+            with self.session_factory() as session:
+                return GetCurrentSdsFile(
+                    SqlAlchemyCurrentSdsQuery(session), SdsPdfStorage(self.sds_root_path)
+                ).execute(product_id)
+        except (SQLAlchemyError, EntityNotFoundError, SupervisoryReadError) as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
 
     def _verify_sds_product(self, product_id: str) -> None:
         try:

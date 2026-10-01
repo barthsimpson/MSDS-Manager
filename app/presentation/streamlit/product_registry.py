@@ -184,6 +184,21 @@ def _render_details(
         st.text(f"Plik: {row.current_sds_filename or MISSING_VALUE}")
         st.text(f"Data wydania / rewizji SDS: {row.current_sds_issue_date or MISSING_VALUE}")
         st.text(f"Rewizja SDS: {row.current_sds_revision or MISSING_VALUE}")
+        try:
+            current_file = composition.get_current_sds_file(details.product_id)
+        except FileNotFoundError:
+            st.info("MISSING — Plik SDS jest obecnie niedostępny.")
+        except (ShellInitializationError, OSError, ValueError):
+            st.error("Nie udało się bezpiecznie odczytać pliku CURRENT SDS.")
+        else:
+            if current_file is None:
+                st.info("Brak CURRENT SDS do pobrania.")
+            else:
+                st.download_button(
+                    "Pobierz SDS", current_file.content,
+                    file_name=current_file.original_filename,
+                    mime="application/pdf", key=f"current-sds-download-{details.product_id}",
+                )
 
     st.markdown("#### BHP")
     st.text(f"Stan: {_bhp_label(row)}")
