@@ -101,6 +101,14 @@ def test_foreign_keys_match_core_relations() -> None:
     assert foreign_key_targets("sds_components") == {"sds_documents.sds_id"}
 
 
+def test_decision_evidence_source_filename_is_separate_from_storage_path() -> None:
+    table = Base.metadata.tables["decision_evidence"]
+    assert "original_filename" in table.columns
+    assert "relative_path" in table.columns
+    assert table.c.original_filename.nullable  # Existing evidence has no known source name.
+    assert not table.c.relative_path.nullable
+
+
 def test_product_usage_location_is_the_decimal_association_table() -> None:
     table = Base.metadata.tables["product_usage_locations"]
 

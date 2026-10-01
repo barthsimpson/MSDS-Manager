@@ -17,7 +17,11 @@ from .sds_extractor import (
     SdsFileValidatorPort,
 )
 from .sds_pdf_storage import SdsPdfStoragePort
-from .bhp_decision import BhpDecisionRepositoryPort, BhpEvidenceValidatorPort
+from .bhp_decision import (
+    BhpDecisionRepositoryPort,
+    BhpEvidenceStoragePort,
+    BhpEvidenceValidatorPort,
+)
 
 __all__ = [
     "ManufacturerRepositoryPort",
@@ -35,4 +39,5 @@ __all__ = [
     "SdsPdfStoragePort",
     "BhpDecisionRepositoryPort",
     "BhpEvidenceValidatorPort",
+    "BhpEvidenceStoragePort",
 ]

@@ -52,6 +52,7 @@ def decision_input(status: BhpDecisionStatus) -> RegisterBhpDecisionInput:
         decision_status=status,
         evidence_relative_path="incoming/decision.pdf",
         notes="  Reviewed by BHP  ",
+        original_filename="Source Decision.PDF",
     )
 
 
@@ -70,6 +71,7 @@ def test_register_bhp_decision_validates_evidence_and_delegates(status) -> None:
     assert len(repository.inputs) == 1
     assert repository.inputs[0].decision_status is status
     assert repository.inputs[0].evidence_relative_path == "evidence/decision.pdf"
+    assert repository.inputs[0].original_filename == "Source Decision.PDF"
     assert repository.inputs[0].notes == "Reviewed by BHP"
 
 
@@ -83,6 +85,7 @@ def test_invalid_status_does_not_call_validator_or_repository() -> None:
         decision_status="PENDING",  # type: ignore[arg-type]
         evidence_relative_path=data.evidence_relative_path,
         notes=data.notes,
+        original_filename=data.original_filename,
     )
 
     with pytest.raises(BhpDecisionValidationError):
@@ -102,9 +105,29 @@ def test_missing_evidence_path_does_not_call_repository() -> None:
         decision_status=data.decision_status,
         evidence_relative_path="   ",
         notes=data.notes,
+        original_filename=data.original_filename,
     )
 
     with pytest.raises(BhpDecisionValidationError):
+        RegisterBhpDecision(validator, repository).execute(data)
+
+    assert validator.paths == []
+    assert repository.inputs == []
+
+
+def test_missing_original_filename_does_not_call_validator_or_repository() -> None:
+    validator = FakeEvidenceValidator()
+    repository = FakeBhpDecisionRepository()
+    data = decision_input(BhpDecisionStatus.APPROVED)
+    data = RegisterBhpDecisionInput(
+        product_id=data.product_id,
+        sds_id=data.sds_id,
+        decision_status=data.decision_status,
+        evidence_relative_path=data.evidence_relative_path,
+        original_filename="  ",
+    )
+
+    with pytest.raises(BhpDecisionValidationError, match="original_filename"):
         RegisterBhpDecision(validator, repository).execute(data)
 
     assert validator.paths == []

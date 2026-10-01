@@ -160,9 +160,14 @@ def test_task025_bhp_ui_postgresql_acceptance(
 
         app = _app(composition).run()
         assert app.header[0].value == "Decyzja BHP"
-        assert set(app.selectbox(key="bhp-evidence").options) == {"approved.pdf", "correction.msg", "rejected.jpg"}
+        assert set(app.selectbox(key="bhp-evidence-0").options) == {
+            "BRAK WYBORU", "approved.pdf (approved.pdf)",
+            "correction.msg (correction.msg)", "rejected.jpg (rejected.jpg)",
+        }
 
-        app.selectbox(key="bhp-evidence").set_value("approved.pdf").run()
+        app.selectbox(key="bhp-evidence-0").set_value(next(
+            item for item in composition.list_bhp_evidence() if item.relative_path == "approved.pdf"
+        )).run()
         app.text_area(key="bhp-notes").set_value("Approved by BHP")
         app.button(key="save-bhp-decision").click().run()
         assert app.success
@@ -182,7 +187,9 @@ def test_task025_bhp_ui_postgresql_acceptance(
             assert decision.notes == "Approved by BHP"
             assert session.scalars(select(ProductHistoryModel).where(ProductHistoryModel.product_id == product_id)).all()[-1].usage_status is ProductUsageStatus.ACTIVE
 
-        app.selectbox(key="bhp-evidence").set_value("correction.msg").run()
+        app.selectbox(key="bhp-evidence-1").set_value(next(
+            item for item in composition.list_bhp_evidence() if item.relative_path == "correction.msg"
+        )).run()
         app.radio(key="bhp-decision-status").set_value("REJECTED")
         app.text_area(key="bhp-notes").set_value("Correction decision")
         app.button(key="save-bhp-decision").click().run()
@@ -232,6 +239,7 @@ def test_task025_bhp_ui_postgresql_acceptance(
                         sds_id=archived_sds_id,
                         decision_status=BhpDecisionStatus.APPROVED,
                         evidence_relative_path="rejected.jpg",
+                        original_filename="rejected.jpg",
                     )
                 )
             )
@@ -250,6 +258,7 @@ def test_task025_bhp_ui_postgresql_acceptance(
                         sds_id=current_sds_id,
                         decision_status=BhpDecisionStatus.APPROVED,
                         evidence_relative_path="rejected.jpg",
+                        original_filename="rejected.jpg",
                     )
                 )
             )

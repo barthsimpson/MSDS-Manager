@@ -33,6 +33,8 @@ class DecisionEvidence:
     evidence_type: EvidenceType
     file_format: EvidenceFileFormat
     file_status: FileAvailabilityStatus
+    # Historical records may predate capture of the source filename.
+    original_filename: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

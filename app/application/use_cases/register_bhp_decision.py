@@ -29,6 +29,7 @@ class RegisterBhpDecision:
             decision_status=data.decision_status,
             evidence_relative_path=normalized_evidence_path,
             notes=data.notes.strip() or None if data.notes is not None else None,
+            original_filename=data.original_filename,
         )
         return self._repository.register(validated_data)
 
@@ -40,6 +41,8 @@ class RegisterBhpDecision:
             raise BhpDecisionValidationError("sds_id is required.")
         if not data.evidence_relative_path.strip():
             raise BhpDecisionValidationError("evidence_relative_path is required.")
+        if not data.original_filename or not data.original_filename.strip():
+            raise BhpDecisionValidationError("original_filename is required.")
         if not isinstance(data.decision_status, BhpDecisionStatus):
             raise BhpDecisionValidationError(
                 "decision_status must be APPROVED or REJECTED."

@@ -139,6 +139,7 @@ def _input(product_id: str, sds_id: str, evidence_path: str, status: BhpDecision
         decision_status=status,
         evidence_relative_path=evidence_path,
         notes="Decision notes",
+        original_filename=evidence_path,
     )
 
 
@@ -183,7 +184,11 @@ def test_bhp_decision_persistence_and_superseding(
                 DecisionRecordStatus.CURRENT,
             ]
             assert session.get(DecisionEvidenceModel, approved.evidence_relative_path) is None
-            assert len(session.scalars(select(DecisionEvidenceModel)).all()) == 2
+            evidence_rows = session.scalars(select(DecisionEvidenceModel)).all()
+            assert len(evidence_rows) == 2
+            assert {row.original_filename for row in evidence_rows} == {
+                "approved.pdf", "rejected.pdf"
+            }
             history = session.scalars(
                 select(ProductHistoryModel).where(ProductHistoryModel.product_id == product_id)
             ).all()

@@ -3,7 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.application.dto import BhpDecisionProduct, CurrentBhpDecision
+from app.application.dto import BhpDecisionHistoryItem, BhpDecisionProduct, CurrentBhpDecision
 from app.infrastructure.db.models import (
     BhpDecisionModel,
     DecisionEvidenceModel,
@@ -57,4 +57,35 @@ class SqlAlchemyBhpDecisionQuery:
             registered_at=decision.registered_at,
             notes=decision.notes,
             evidence_relative_path=evidence.relative_path,
+            evidence_original_filename=evidence.original_filename,
         )
+
+    def list_decisions(self, sds_id: str) -> tuple[BhpDecisionHistoryItem, ...]:
+        rows = self._session.execute(
+            select(BhpDecisionModel, DecisionEvidenceModel)
+            .join(DecisionEvidenceModel, BhpDecisionModel.evidence_id == DecisionEvidenceModel.evidence_id)
+            .where(BhpDecisionModel.sds_id == sds_id)
+            .order_by(BhpDecisionModel.registered_at.desc(), BhpDecisionModel.decision_id)
+        ).all()
+        return tuple(
+            BhpDecisionHistoryItem(
+                decision_id=decision.decision_id,
+                decision_status=decision.decision_status,
+                record_status=decision.record_status,
+                registered_at=decision.registered_at,
+                notes=decision.notes,
+                evidence_relative_path=evidence.relative_path,
+                evidence_original_filename=evidence.original_filename,
+            )
+            for decision, evidence in rows
+        )
+
+    def evidence_names(self) -> dict[str, str | None]:
+        rows = self._session.execute(
+            select(DecisionEvidenceModel.relative_path, DecisionEvidenceModel.original_filename)
+            .order_by(DecisionEvidenceModel.evidence_id)
+        ).all()
+        names: dict[str, str | None] = {}
+        for path, name in rows:
+            names.setdefault(path, name)
+        return names

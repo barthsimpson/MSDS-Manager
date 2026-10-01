@@ -22,8 +22,11 @@ from .sds import (
     SdsSafetyProfileDraft,
 )
 from .bhp_decisions import (
+    BhpDecisionHistoryItem,
     BhpDecisionProduct,
+    BhpEvidenceOption,
     CurrentBhpDecision,
+    NewBhpDecisionInput,
     RegisterBhpDecisionInput,
     RegisterBhpDecisionResult,
 )
@@ -46,6 +49,9 @@ __all__ = [
     "RegisterBhpDecisionInput",
     "RegisterBhpDecisionResult",
     "BhpDecisionProduct",
+    "BhpDecisionHistoryItem",
+    "BhpEvidenceOption",
     "CurrentBhpDecision",
+    "NewBhpDecisionInput",
     "SupervisoryProductRow",
 ]

@@ -21,13 +21,14 @@ from app.domain.enums import (
     ProductUsageStatus,
     SdsDocumentStatus,
 )
+from app.domain.models import DecisionEvidence
 from app.infrastructure.db.models import (
     BhpDecisionModel,
-    DecisionEvidenceModel,
     ProductHistoryModel,
     ProductModel,
     SdsDocumentModel,
 )
+from .decision_evidence import to_model
 
 
 class SqlAlchemyBhpDecisionRepository(BhpDecisionRepositoryPort):
@@ -37,17 +38,9 @@ class SqlAlchemyBhpDecisionRepository(BhpDecisionRepositoryPort):
     def register(
         self, data: RegisterBhpDecisionInput
     ) -> RegisterBhpDecisionResult:
-        product = self._session.get(ProductModel, data.product_id)
-        if product is None:
-            raise ValueError(f"Product not found: {data.product_id}")
-
-        sds = self._session.get(SdsDocumentModel, data.sds_id)
-        if sds is None:
-            raise ValueError(f"SDS not found: {data.sds_id}")
-        if sds.product_id != data.product_id:
-            raise ValueError("SDS does not belong to product.")
-        if sds.document_status is not SdsDocumentStatus.CURRENT:
-            raise ValueError("SDS is not CURRENT.")
+        if not data.original_filename or not data.original_filename.strip():
+            raise ValueError("original_filename is required for new evidence.")
+        product, sds = self._get_scope(data.product_id, data.sds_id)
 
         self._session.execute(
             update(BhpDecisionModel)
@@ -63,12 +56,15 @@ class SqlAlchemyBhpDecisionRepository(BhpDecisionRepositoryPort):
             data.evidence_relative_path
         )
         self._session.add(
-            DecisionEvidenceModel(
-                evidence_id=evidence_id,
-                relative_path=data.evidence_relative_path,
-                evidence_type=evidence_type,
-                file_format=evidence_format,
-                file_status=FileAvailabilityStatus.AVAILABLE,
+            to_model(
+                DecisionEvidence(
+                    evidence_id=evidence_id,
+                    original_filename=data.original_filename,
+                    relative_path=data.evidence_relative_path,
+                    evidence_type=evidence_type,
+                    file_format=evidence_format,
+                    file_status=FileAvailabilityStatus.AVAILABLE,
+                )
             )
         )
         self._after_evidence_created()
@@ -113,6 +109,23 @@ class SqlAlchemyBhpDecisionRepository(BhpDecisionRepositoryPort):
             registered_at=now,
             evidence_relative_path=data.evidence_relative_path,
         )
+
+    def verify_scope(self, product_id: str, sds_id: str) -> None:
+        self._get_scope(product_id, sds_id)
+
+    def _get_scope(self, product_id: str, sds_id: str):
+        product = self._session.get(ProductModel, product_id)
+        if product is None:
+            raise ValueError(f"Product not found: {product_id}")
+
+        sds = self._session.get(SdsDocumentModel, sds_id)
+        if sds is None:
+            raise ValueError(f"SDS not found: {sds_id}")
+        if sds.product_id != product_id:
+            raise ValueError("SDS does not belong to product.")
+        if sds.document_status is not SdsDocumentStatus.CURRENT:
+            raise ValueError("SDS is not CURRENT.")
+        return product, sds
 
     def _after_evidence_created(self) -> None:
         """Test hook; the transaction owner still controls rollback."""

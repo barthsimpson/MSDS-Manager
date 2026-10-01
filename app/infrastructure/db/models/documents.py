@@ -77,6 +77,7 @@ class DecisionEvidenceModel(Base):
     __tablename__ = "decision_evidence"
 
     evidence_id: Mapped[str] = mapped_column(String, primary_key=True)
+    original_filename: Mapped[str | None] = mapped_column(String, nullable=True)
     relative_path: Mapped[str] = mapped_column(String, nullable=False)
     evidence_type: Mapped[EvidenceType] = mapped_column(
         enum_column_type(EvidenceType, "evidence_type_values"), nullable=False

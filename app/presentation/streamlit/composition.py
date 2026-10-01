@@ -20,13 +20,17 @@ from app.application.dto import (
     UpdateProductIdentityInput,
     UpdateProductUsageLocationInput,
     BhpDecisionProduct,
+    BhpDecisionHistoryItem,
+    BhpEvidenceOption,
     CurrentBhpDecision,
+    NewBhpDecisionInput,
     RegisterBhpDecisionInput,
     RegisterBhpDecisionResult,
     SupervisoryProductRow,
 )
 from app.application.exceptions import EntityNotFoundError
 from app.application.use_cases.import_sds import ImportSds
+from app.application.use_cases.bhp_evidence import ImportBhpEvidence, ListBhpEvidence, ReadBhpEvidence
 from app.domain.models import UnitOfMeasure
 from app.application.use_cases import (
     AssignProductUsageLocation,
@@ -69,7 +73,7 @@ from app.infrastructure.db.models import ProductModel
 from app.infrastructure.filesystem.pdf_sds_extractor import PdfSdsExtractor
 from app.infrastructure.filesystem.sds_file_validator import SdsFileValidator
 from app.infrastructure.filesystem.sds_pdf_storage import SdsPdfStorage
-from app.infrastructure.filesystem.bhp_evidence_validator import BhpEvidenceValidator
+from app.infrastructure.filesystem.bhp_evidence_storage import BhpEvidenceStorage
 
 
 INITIALIZATION_ERROR_MESSAGE = (
@@ -111,25 +115,44 @@ class ShellComposition:
         with self.session_factory() as session:
             return SqlAlchemyBhpDecisionQuery(session).get_current_decision(sds_id)
 
+    def list_bhp_decisions(self, sds_id: str) -> tuple[BhpDecisionHistoryItem, ...]:
+        with self.session_factory() as session:
+            return SqlAlchemyBhpDecisionQuery(session).list_decisions(sds_id)
+
+    def list_bhp_evidence(self) -> tuple[BhpEvidenceOption, ...]:
+        with self.session_factory() as session:
+            names = SqlAlchemyBhpDecisionQuery(session).evidence_names()
+        return ListBhpEvidence(BhpEvidenceStorage(self.bhp_evidence_root_path)).execute(names)
+
+    def bhp_evidence_available(self, relative_path: str) -> bool:
+        return ReadBhpEvidence(BhpEvidenceStorage(self.bhp_evidence_root_path)).available(relative_path)
+
+    def read_bhp_evidence(self, relative_path: str) -> bytes:
+        return ReadBhpEvidence(BhpEvidenceStorage(self.bhp_evidence_root_path)).execute(relative_path)
+
     def list_bhp_evidence_files(self) -> tuple[str, ...]:
-        allowed = {".msg", ".pdf", ".jpg", ".jpeg", ".png"}
-        return tuple(
-            sorted(
-                path.relative_to(self.bhp_evidence_root_path).as_posix()
-                for path in self.bhp_evidence_root_path.rglob("*")
-                if path.is_file() and path.suffix.lower() in allowed
-            )
-        )
+        return tuple(item.relative_path for item in self.list_bhp_evidence())
 
     def register_bhp_decision(
         self, data: RegisterBhpDecisionInput
     ) -> RegisterBhpDecisionResult:
         return TransactionExecutor(self.session_factory).execute(
             lambda session: RegisterBhpDecision(
-                BhpEvidenceValidator(self.bhp_evidence_root_path),
+                BhpEvidenceStorage(self.bhp_evidence_root_path),
                 SqlAlchemyBhpDecisionRepository(session),
             ).execute(data)
         )
+
+    def register_new_bhp_decision(self, data: NewBhpDecisionInput) -> RegisterBhpDecisionResult:
+        return ImportBhpEvidence(BhpEvidenceStorage(self.bhp_evidence_root_path)).execute(
+            data,
+            self._verify_bhp_scope,
+            self.register_bhp_decision,
+        )
+
+    def _verify_bhp_scope(self, product_id: str, sds_id: str) -> None:
+        with self.session_factory() as session:
+            SqlAlchemyBhpDecisionRepository(session).verify_scope(product_id, sds_id)
 
     def list_sds_files(self) -> tuple[str, ...]:
         return tuple(

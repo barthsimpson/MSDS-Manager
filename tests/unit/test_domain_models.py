@@ -144,6 +144,7 @@ def test_sds_accepts_issue_date_and_revision() -> None:
 def test_decision_and_evidence_models_can_be_created() -> None:
     evidence = DecisionEvidence(
         evidence_id="evidence-1",
+        original_filename="approval.msg",
         relative_path="decisions/approval.msg",
         evidence_type=EvidenceType.EMAIL,
         file_format=EvidenceFileFormat.MSG,
@@ -161,6 +162,7 @@ def test_decision_and_evidence_models_can_be_created() -> None:
     )
 
     assert decision.evidence_id == evidence.evidence_id
+    assert evidence.original_filename == "approval.msg"
     assert decision.notes is None
 
 
