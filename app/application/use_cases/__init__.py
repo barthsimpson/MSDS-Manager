@@ -11,6 +11,8 @@ from .list_manufacturers import ListManufacturers
 from .list_products import ListProducts
 from .list_usage_locations import ListUsageLocations
 from .list_supervisory_products import ListSupervisoryProducts
+from .get_analytics_dashboard import GetAnalyticsDashboard
+from .list_analytics_product_locations import ListAnalyticsProductLocations
 from .update_product_administrative_data import UpdateProductAdministrativeData
 from .update_product_identity import UpdateProductIdentity
 from .delete_product import DeleteProduct
@@ -28,6 +30,8 @@ __all__ = [
     "ListManufacturers",
     "ListProducts",
     "ListSupervisoryProducts",
+    "GetAnalyticsDashboard",
+    "ListAnalyticsProductLocations",
     "ListUsageLocations",
     "ReactivateUsageLocation",
     "UpdateProductAdministrativeData",

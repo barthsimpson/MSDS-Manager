@@ -27,6 +27,9 @@ from app.application.dto import (
     RegisterBhpDecisionInput,
     RegisterBhpDecisionResult,
     SupervisoryProductRow,
+    AnalyticsDashboardDto,
+    AnalyticsFilters,
+    ProductLocationAnalyticsRow,
 )
 from app.application.exceptions import EntityNotFoundError
 from app.application.use_cases.import_sds import ImportSds
@@ -50,6 +53,9 @@ from app.application.use_cases import (
     PrepareSdsDraft,
     RegisterBhpDecision,
     ListSupervisoryProducts,
+    ListManufacturers,
+    GetAnalyticsDashboard,
+    ListAnalyticsProductLocations,
 )
 from app.infrastructure.config import ConfigurationError, Settings, load_settings
 from app.infrastructure.db.repositories import (
@@ -63,6 +69,8 @@ from app.infrastructure.db.repositories import (
     SqlAlchemyBhpDecisionRepository,
     SqlAlchemyBhpDecisionQuery,
     SqlAlchemySupervisoryQuery,
+    SqlAlchemyManufacturerRepository,
+    SqlAlchemyAnalyticsQuery,
     SqlAlchemyUnitOfMeasureRepository,
 )
 from app.infrastructure.db.repositories.current_sds_query import SqlAlchemyCurrentSdsQuery
@@ -76,6 +84,7 @@ from app.infrastructure.filesystem.pdf_sds_extractor import PdfSdsExtractor
 from app.infrastructure.filesystem.sds_file_validator import SdsFileValidator
 from app.infrastructure.filesystem.sds_pdf_storage import SdsPdfStorage
 from app.infrastructure.filesystem.bhp_evidence_storage import BhpEvidenceStorage
+from app.infrastructure.filesystem.analytics_availability import AnalyticsFileAvailabilityAdapter
 
 
 INITIALIZATION_ERROR_MESSAGE = (
@@ -97,6 +106,35 @@ class ShellComposition:
     sds_root_path: Path
     bhp_evidence_root_path: Path = Path(".")
     settings: Settings | None = None
+
+    def list_manufacturers(self):
+        try:
+            with self.session_factory() as session:
+                return ListManufacturers(SqlAlchemyManufacturerRepository(session)).execute()
+        except (SQLAlchemyError, OSError, ImportError) as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
+
+    def get_analytics_dashboard(self, filters: AnalyticsFilters) -> AnalyticsDashboardDto:
+        try:
+            with self.session_factory() as session:
+                return GetAnalyticsDashboard(
+                    SqlAlchemyAnalyticsQuery(session),
+                    AnalyticsFileAvailabilityAdapter(
+                        SdsPdfStorage(self.sds_root_path),
+                        BhpEvidenceStorage(self.bhp_evidence_root_path),
+                    ),
+                ).execute(filters)
+        except (SQLAlchemyError, OSError, ImportError, ValueError, RuntimeError) as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
+
+    def list_analytics_product_locations(
+        self, filters: AnalyticsFilters
+    ) -> list[ProductLocationAnalyticsRow]:
+        try:
+            with self.session_factory() as session:
+                return ListAnalyticsProductLocations(SqlAlchemyAnalyticsQuery(session)).execute(filters)
+        except (SQLAlchemyError, OSError, ImportError, ValueError, RuntimeError) as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
 
     def list_supervisory_products(self) -> list[SupervisoryProductRow]:
         if self.settings is None:

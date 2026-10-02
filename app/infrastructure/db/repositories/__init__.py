@@ -11,6 +11,7 @@ from .product_usage_location_history import (
     SqlAlchemyProductUsageLocationHistoryRepository,
 )
 from .supervisory_query import SqlAlchemySupervisoryQuery
+from .analytics_query import SqlAlchemyAnalyticsQuery
 from .usage_location import SqlAlchemyUsageLocationRepository
 from .usage_location_history import SqlAlchemyUsageLocationHistoryRepository
 from .unit_of_measure import SqlAlchemyUnitOfMeasureRepository
@@ -25,6 +26,7 @@ __all__ = [
     "SqlAlchemyProductUsageLocationHistoryRepository",
     "SqlAlchemyProductUsageLocationRepository",
     "SqlAlchemySupervisoryQuery",
+    "SqlAlchemyAnalyticsQuery",
     "SqlAlchemyUsageLocationHistoryRepository",
     "SqlAlchemyUsageLocationRepository",
     "SqlAlchemyUnitOfMeasureRepository",

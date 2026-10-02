@@ -11,6 +11,7 @@ from .usage_location_history_repository import UsageLocationHistoryRepositoryPor
 from .usage_location_repository import UsageLocationRepositoryPort
 from .unit_of_measure_repository import UnitOfMeasureRepositoryPort
 from .supervisory_query import SupervisoryQueryPort
+from .analytics_read import AnalyticsReadPort, AnalyticsFileAvailabilityPort
 from .sds_extractor import (
     SdsAcceptanceRepositoryPort,
     SdsExtractorPort,
@@ -33,6 +34,8 @@ __all__ = [
     "UsageLocationRepositoryPort",
     "UnitOfMeasureRepositoryPort",
     "SupervisoryQueryPort",
+    "AnalyticsReadPort",
+    "AnalyticsFileAvailabilityPort",
     "SdsExtractorPort",
     "SdsFileValidatorPort",
     "SdsAcceptanceRepositoryPort",

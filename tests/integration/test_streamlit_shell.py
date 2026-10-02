@@ -25,7 +25,7 @@ def business_row_count() -> int:
         engine.dispose()
 
 
-def test_streamlit_shell_navigation_on_empty_database_is_read_only() -> None:
+def test_streamlit_shell_navigation_is_read_only() -> None:
     rows_before = business_row_count()
 
     app = AppTest.from_file(str(APP_PATH)).run(timeout=10)
@@ -33,17 +33,19 @@ def test_streamlit_shell_navigation_on_empty_database_is_read_only() -> None:
     assert app.exception == []
     assert app.title[0].value == "MSDS Manager"
     assert app.header[0].value == "Produkty"
-    assert app.info[0].value == "Brak produktów w rejestrze."
+    if rows_before == 0:
+        assert app.info[0].value == "Brak produktów w rejestrze."
     assert app.radio[0].options == [
         "Produkty",
         "Dodaj SDS",
         "Decyzja BHP",
         "Stanowiska",
         "Widok nadzorczy",
+        "Analizy",
     ]
-    assert app.selectbox == []
-    assert app.button == []
-    assert rows_before == 0
+    if rows_before == 0:
+        assert app.selectbox == []
+        assert app.button == []
 
     app.radio[0].set_value("Stanowiska").run(timeout=10)
 
@@ -55,8 +57,23 @@ def test_streamlit_shell_navigation_on_empty_database_is_read_only() -> None:
     app.radio[0].set_value("Widok nadzorczy").run(timeout=10)
     assert app.exception == []
     assert app.header[0].value == "Widok nadzorczy"
-    assert app.info[0].value == "Brak produktów do wyświetlenia."
-    assert app.button == []
+    if rows_before == 0:
+        assert app.info[0].value == "Brak produktów do wyświetlenia."
+        assert app.button == []
+    assert business_row_count() == rows_before
+
+    app.radio[0].set_value("Analizy").run(timeout=10)
+    assert app.exception == []
+    assert app.header[0].value == "Analizy"
+    assert app.subheader[0].value == "Dashboard"
+    assert not any(button.label == "Eksport" for button in app.button)
+    assert business_row_count() == rows_before
+
+    app.button(key="analytics-view-Raport przeglądu").click().run(timeout=10)
+    assert app.subheader[0].value == "Raport przeglądu"
+    app.radio[0].set_value("Produkty").run(timeout=10)
+    app.radio[0].set_value("Analizy").run(timeout=10)
+    assert app.subheader[0].value == "Dashboard"
     assert business_row_count() == rows_before
 
 

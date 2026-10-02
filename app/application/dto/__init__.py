@@ -12,6 +12,11 @@ from .products import (
     UpdateProductIdentityInput,
 )
 from .supervisory import SupervisoryProductRow
+from .analytics import (
+    AnalyticsBhpStatus, AnalyticsDashboardDto, AnalyticsFileAvailability, AnalyticsFilters,
+    AnalyticsKpiDto, AnalyticsSdsStatus, AttentionSummaryDto, BhpStatusDistributionDto,
+    ManufacturerSummaryRow, ProductAnalyticsFact, ProductLocationAnalyticsRow, SdsTrendPoint,
+)
 from .usage_locations import CreateUsageLocationInput
 from .sds import (
     AddSdsRevisionInput,
@@ -54,4 +59,16 @@ __all__ = [
     "CurrentBhpDecision",
     "NewBhpDecisionInput",
     "SupervisoryProductRow",
+    "AnalyticsBhpStatus",
+    "AnalyticsDashboardDto",
+    "AnalyticsFileAvailability",
+    "AnalyticsFilters",
+    "AnalyticsKpiDto",
+    "AnalyticsSdsStatus",
+    "AttentionSummaryDto",
+    "BhpStatusDistributionDto",
+    "ManufacturerSummaryRow",
+    "ProductAnalyticsFact",
+    "ProductLocationAnalyticsRow",
+    "SdsTrendPoint",
 ]

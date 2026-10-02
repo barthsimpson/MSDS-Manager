@@ -35,6 +35,7 @@ def test_streamlit_modules_are_importable_without_starting_composition(
             "Decyzja BHP",
             "Stanowiska",
             "Widok nadzorczy",
+            "Analizy",
         )
 
     importlib.reload(app_module)
