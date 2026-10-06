@@ -9,3 +9,4 @@ __pycache__/
 *.sqlite3
 /data/sds/
 /data/bhp_evidence/
+.pytest_tmp/
