@@ -91,6 +91,7 @@ class SqlAlchemyProductRepository(ProductRepositoryPort):
             ProductUsageLocationDetails(
                 location_id=location.location_id,
                 location_name=location.location_name,
+                location_code=location.location_code,
                 location_status=location.status,
                 peak_quantity_value=assignment.peak_quantity_value,
                 peak_quantity_unit=peak_code,

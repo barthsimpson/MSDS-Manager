@@ -209,7 +209,7 @@ def test_task016_sprint2_end_to_end_acceptance(
                 lambda session, location_id=location_id, location_name=location_name: CreateUsageLocation(
                     SqlAlchemyUsageLocationRepository(session),
                     id_factory=lambda: location_id,
-                ).execute(CreateUsageLocationInput(location_name))
+                ).execute(CreateUsageLocationInput(location_name, "D" + uuid4().hex[:20]))
             )
 
         executor.execute(

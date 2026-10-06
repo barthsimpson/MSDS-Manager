@@ -61,6 +61,7 @@ class UsageLocation:
     location_id: str
     location_name: str
     status: UsageLocationStatus = UsageLocationStatus.ACTIVE
+    location_code: str | None = None
 
     def deactivate(self) -> "UsageLocation":
         return replace(self, status=UsageLocationStatus.INACTIVE)

@@ -8,6 +8,7 @@ import streamlit as st
 from app.application.dto import (
     AddSdsRevisionInput,
     AssignProductUsageLocationInput,
+    AssignLegacyUsageLocationCodeInput,
     CreateUsageLocationInput,
     ProductDetails,
     ProductListItem,
@@ -510,40 +511,60 @@ def render_product_registry(composition: ShellComposition) -> None:
 def render_usage_locations(composition: ShellComposition) -> None:
     st.header("Stanowiska")
     locations = composition.list_usage_locations()
+    missing_count = sum(location.location_code is None for location in locations)
+    st.caption(f"Brak symbolu: {missing_count}")
     if locations:
-        st.dataframe(
-            [
-                {
-                    "ID lokalizacji": location.location_id,
-                    "Lokalizacja": location.location_name,
-                    "Status": location.status.value,
-                }
-                for location in locations
-            ],
-            hide_index=True,
-            use_container_width=True,
-        )
+        symbol_header, name_header, status_header, action_header = st.columns([2, 3, 1, 2])
+        symbol_header.markdown("**Symbol**")
+        name_header.markdown("**Lokalizacja**")
+        status_header.markdown("**Status**")
+        action_header.markdown("**Akcja**")
+        for location in locations:
+            with st.container(border=True):
+                symbol_col, name_col, status_col, action_col = st.columns([2, 3, 1, 2])
+                with symbol_col:
+                    st.write(location.location_code or "BRAK SYMBOLU")
+                    if location.location_code is None:
+                        code = st.text_input(
+                            "Symbol", key=f"legacy-code-{location.location_id}",
+                            label_visibility="collapsed", placeholder="Symbol",
+                        )
+                        if st.button("Uzupełnij", key=f"legacy-assign-{location.location_id}"):
+                            try:
+                                composition.assign_legacy_usage_location_code(
+                                    AssignLegacyUsageLocationCodeInput(location.location_id, code)
+                                )
+                                st.rerun()
+                            except (ShellInitializationError, ValueError) as error:
+                                st.error(str(error))
+                name_col.write(location.location_name)
+                status_col.write(location.status.value)
+                action = (
+                    "Dezaktywuj" if location.status is UsageLocationStatus.ACTIVE
+                    else "Reaktywuj"
+                )
+                with action_col:
+                    if st.button(action, key=f"location-status-{location.location_id}"):
+                        try:
+                            composition.change_usage_location_status(
+                                location.location_id,
+                                active=location.status is UsageLocationStatus.INACTIVE,
+                            )
+                            st.rerun()
+                        except ShellInitializationError as error:
+                            st.error(str(error))
 
+    location_code = st.text_input("Symbol lokalizacji")
     location_name = st.text_input("Nazwa lokalizacji")
     if st.button("Dodaj lokalizację"):
         try:
             if not location_name.strip():
                 raise ValueError("Nazwa lokalizacji jest wymagana.")
             composition.create_usage_location(
-                CreateUsageLocationInput(location_name=location_name.strip())
+                CreateUsageLocationInput(
+                    location_name=location_name.strip(), location_code=location_code
+                )
             )
-            st.success("Lokalizacja utworzona.")
+            st.rerun()
         except (ShellInitializationError, ValueError) as error:
             st.error(str(error))
-
-    for location in locations:
-        action = "Dezaktywuj" if location.status is UsageLocationStatus.ACTIVE else "Reaktywuj"
-        if st.button(action, key=f"location-status-{location.location_id}"):
-            try:
-                composition.change_usage_location_status(
-                    location.location_id,
-                    active=location.status is UsageLocationStatus.INACTIVE,
-                )
-                st.success("Status lokalizacji zapisany.")
-            except ShellInitializationError as error:
-                st.error(str(error))

@@ -150,7 +150,7 @@ def test_product_repository_reads_details_and_commits_only_admin_fields(
     try:
         executor.execute(
             lambda session: SqlAlchemyUsageLocationRepository(session).add(
-                UsageLocation(location_id, "TASK-010 Line")
+                UsageLocation(location_id, "TASK-010 Line", location_code="T" + uuid4().hex[:20].upper())
             )
         )
         executor.execute(
@@ -242,13 +242,13 @@ def test_usage_location_vertical_slice_commits_lifecycle_and_lists_both_statuses
             lambda session: CreateUsageLocation(
                 SqlAlchemyUsageLocationRepository(session),
                 id_factory=lambda: location_id,
-            ).execute(CreateUsageLocationInput("TASK-010 Active line"))
+            ).execute(CreateUsageLocationInput("TASK-010 Active line", "A" + uuid4().hex[:20]))
         )
         executor.execute(
             lambda session: CreateUsageLocation(
                 SqlAlchemyUsageLocationRepository(session),
                 id_factory=lambda: second_location_id,
-            ).execute(CreateUsageLocationInput("TASK-010 Lifecycle line"))
+            ).execute(CreateUsageLocationInput("TASK-010 Lifecycle line", "B" + uuid4().hex[:20]))
         )
         inactive = executor.execute(
             lambda session: DeactivateUsageLocation(
@@ -302,7 +302,7 @@ def test_assignment_vertical_slice_preserves_decimal_and_composite_identity(
     try:
         executor.execute(
             lambda session: SqlAlchemyUsageLocationRepository(session).add(
-                UsageLocation(location_id, "TASK-010 Assignment line")
+                UsageLocation(location_id, "TASK-010 Assignment line", location_code="T" + uuid4().hex[:20].upper())
             )
         )
         assigned = executor.execute(
@@ -375,7 +375,7 @@ def test_product_can_be_assigned_to_multiple_active_locations(
                 location_name=location_name: CreateUsageLocation(
                     SqlAlchemyUsageLocationRepository(session),
                     id_factory=lambda: current_location_id,
-                ).execute(CreateUsageLocationInput(location_name))
+                ).execute(CreateUsageLocationInput(location_name, "C" + uuid4().hex[:20]))
             )
 
         inputs = (
@@ -446,6 +446,7 @@ def test_assignment_to_inactive_location_is_rejected_before_repository_write(
                     location_id,
                     "TASK-010 Inactive line",
                     UsageLocationStatus.INACTIVE,
+                    location_code="T" + uuid4().hex[:20].upper(),
                 )
             )
         )
@@ -531,8 +532,8 @@ def test_transaction_rolls_back_earlier_valid_change_after_integrity_failure(
             )
         )
         repository = SqlAlchemyUsageLocationRepository(session)
-        repository.add(UsageLocation(location_id, "Duplicate A"))
-        repository.add(UsageLocation(location_id, "Duplicate B"))
+        repository.add(UsageLocation(location_id, "Duplicate A", location_code="T" + uuid4().hex[:20].upper()))
+        repository.add(UsageLocation(location_id, "Duplicate B", location_code="T" + uuid4().hex[:20].upper()))
 
     try:
         with pytest.raises(PersistenceError) as error_info:
@@ -571,7 +572,7 @@ def test_postgresql_quantity_check_rejects_invalid_repository_write_and_rolls_ba
 
     def failing_operation(session: Session) -> None:
         SqlAlchemyUsageLocationRepository(session).add(
-            UsageLocation(location_id, "Must roll back")
+            UsageLocation(location_id, "Must roll back", location_code="T" + uuid4().hex[:20].upper())
         )
         SqlAlchemyProductUsageLocationRepository(session).add(invalid_assignment)
 

@@ -29,6 +29,7 @@ class ProductUsageLocationDetails:
     peak_quantity_unit: str
     monthly_consumption_value: Decimal | None
     monthly_consumption_unit: str | None
+    location_code: str | None = None
     peak_quantity_unit_id: str | None = None
     monthly_consumption_unit_id: str | None = None
 

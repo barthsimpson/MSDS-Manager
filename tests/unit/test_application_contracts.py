@@ -14,7 +14,7 @@ from app.application.dto import (
     UpdateProductAdministrativeDataInput,
     UpdateProductUsageLocationInput,
 )
-from app.application.exceptions import EntityNotFoundError, InactiveUnitOfMeasureError, InactiveUsageLocationError
+from app.application.exceptions import DuplicateLocationCodeError, EntityNotFoundError, InactiveUnitOfMeasureError, InactiveUsageLocationError
 from app.application.use_cases import (
     AssignProductUsageLocation,
     CreateUsageLocation,
@@ -82,6 +82,10 @@ class FakeUsageLocationRepository:
 
     def get_by_id(self, location_id: str) -> UsageLocation | None:
         return self.locations.get(location_id)
+
+    def get_by_code(self, location_code: str) -> UsageLocation | None:
+        return next((location for location in self.locations.values()
+                     if location.location_code == location_code), None)
 
     def add(self, location: UsageLocation) -> None:
         self.locations[location.location_id] = location
@@ -213,15 +217,37 @@ def test_list_usage_locations_includes_active_and_inactive() -> None:
 
 def test_create_usage_location_uses_domain_active_default() -> None:
     repository = FakeUsageLocationRepository()
-    data = CreateUsageLocationInput(location_name="New line")
+    data = CreateUsageLocationInput(location_name="New line", location_code=" mzt ")
 
     result = CreateUsageLocation(repository, id_factory=lambda: "location-new").execute(
         data
     )
 
-    assert result == UsageLocation("location-new", "New line")
+    assert result == UsageLocation("location-new", "New line", location_code="MZT")
     assert result.status is UsageLocationStatus.ACTIVE
     assert repository.added == [result]
+
+
+@pytest.mark.parametrize("code", ["", "  ", "-MZT", "MZT space", "Ą", "A" * 33])
+def test_create_usage_location_rejects_invalid_code(code: str) -> None:
+    repository = FakeUsageLocationRepository()
+    with pytest.raises(ValueError, match="location_code"):
+        CreateUsageLocation(repository).execute(CreateUsageLocationInput("Line", code))
+    assert repository.added == []
+
+
+def test_create_usage_location_rejects_duplicate_after_normalization() -> None:
+    repository = FakeUsageLocationRepository(
+        UsageLocation("existing", "Line", location_code="MZT")
+    )
+    with pytest.raises(DuplicateLocationCodeError):
+        CreateUsageLocation(repository).execute(CreateUsageLocationInput("Other", " mzt "))
+    assert repository.added == []
+
+
+def test_create_usage_location_input_requires_code() -> None:
+    with pytest.raises(TypeError, match="location_code"):
+        CreateUsageLocationInput(location_name="Line")
 
 
 def test_deactivate_and_reactivate_update_status_without_delete() -> None:

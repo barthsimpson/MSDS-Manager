@@ -55,8 +55,16 @@ class ProductModel(Base):
 
 class UsageLocationModel(Base):
     __tablename__ = "usage_locations"
+    __table_args__ = (
+        CheckConstraint(
+            "location_code IS NULL OR location_code ~ '^[A-Z0-9][A-Z0-9_-]{0,31}$'",
+            name="ck_usage_locations_location_code_format",
+        ),
+        UniqueConstraint("location_code", name="uq_usage_locations_location_code"),
+    )
 
     location_id: Mapped[str] = mapped_column(String, primary_key=True)
+    location_code: Mapped[str] = mapped_column(String(32), nullable=False)
     location_name: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[UsageLocationStatus] = mapped_column(
         enum_column_type(UsageLocationStatus, "usage_location_status_values"),

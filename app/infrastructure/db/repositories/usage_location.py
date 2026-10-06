@@ -1,9 +1,11 @@
 """SQLAlchemy adapter for usage-location application contracts."""
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.application.ports import UsageLocationRepositoryPort
+from app.application.exceptions import DuplicateLocationCodeError
 from app.domain.models import UsageLocation
 from app.infrastructure.db.models import UsageLocationModel
 
@@ -13,6 +15,7 @@ def _to_domain(model: UsageLocationModel) -> UsageLocation:
         location_id=model.location_id,
         location_name=model.location_name,
         status=model.status,
+        location_code=model.location_code,
     )
 
 
@@ -30,14 +33,27 @@ class SqlAlchemyUsageLocationRepository(UsageLocationRepositoryPort):
         model = self._session.get(UsageLocationModel, location_id)
         return None if model is None else _to_domain(model)
 
+    def get_by_code(self, location_code: str) -> UsageLocation | None:
+        model = self._session.scalar(
+            select(UsageLocationModel).where(UsageLocationModel.location_code == location_code)
+        )
+        return None if model is None else _to_domain(model)
+
     def add(self, location: UsageLocation) -> None:
         self._session.add(
             UsageLocationModel(
                 location_id=location.location_id,
                 location_name=location.location_name,
                 status=location.status,
+                location_code=location.location_code,
             )
         )
+        try:
+            self._session.flush()
+        except IntegrityError as error:
+            if getattr(getattr(error.orig, "diag", None), "constraint_name", None) == "uq_usage_locations_location_code":
+                raise DuplicateLocationCodeError(location.location_code) from error
+            raise
 
     def update_status(self, location: UsageLocation) -> None:
         self._session.execute(
@@ -45,3 +61,20 @@ class SqlAlchemyUsageLocationRepository(UsageLocationRepositoryPort):
             .where(UsageLocationModel.location_id == location.location_id)
             .values(status=location.status)
         )
+
+    def assign_legacy_code(self, location_id: str, location_code: str) -> bool:
+        try:
+            updated_id = self._session.scalar(
+                update(UsageLocationModel)
+                .where(
+                    UsageLocationModel.location_id == location_id,
+                    UsageLocationModel.location_code.is_(None),
+                )
+                .values(location_code=location_code)
+                .returning(UsageLocationModel.location_id)
+            )
+        except IntegrityError as error:
+            if getattr(getattr(error.orig, "diag", None), "constraint_name", None) == "uq_usage_locations_location_code":
+                raise DuplicateLocationCodeError(location_code) from error
+            raise
+        return updated_id is not None

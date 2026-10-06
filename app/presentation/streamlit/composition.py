@@ -13,6 +13,7 @@ from app.application.dto import (
     AddSdsRevisionInput,
     AcceptSdsInput,
     AssignProductUsageLocationInput,
+    AssignLegacyUsageLocationCodeInput,
     CreateUsageLocationInput,
     ProductDetails,
     ProductListItem,
@@ -38,6 +39,7 @@ from app.application.use_cases.bhp_evidence import ImportBhpEvidence, ListBhpEvi
 from app.domain.models import UnitOfMeasure
 from app.application.use_cases import (
     AssignProductUsageLocation,
+    AssignLegacyUsageLocationCode,
     CreateUsageLocation,
     DeactivateUsageLocation,
     GetProductDetails,
@@ -314,7 +316,18 @@ class ShellComposition:
         self._execute_write(
             lambda session: CreateUsageLocation(
                 SqlAlchemyUsageLocationRepository(session)
-            ).execute(data)
+            ).execute(data),
+            propagate_value_error=True,
+        )
+
+    def assign_legacy_usage_location_code(
+        self, data: AssignLegacyUsageLocationCodeInput
+    ) -> None:
+        self._execute_write(
+            lambda session: AssignLegacyUsageLocationCode(
+                SqlAlchemyUsageLocationRepository(session)
+            ).execute(data),
+            propagate_value_error=True,
         )
 
     def change_usage_location_status(self, location_id: str, active: bool) -> None:
@@ -349,9 +362,13 @@ class ShellComposition:
             ).execute(data)
         )
 
-    def _execute_write(self, operation) -> None:
+    def _execute_write(self, operation, *, propagate_value_error: bool = False) -> None:
         try:
             TransactionExecutor(self.session_factory).execute(operation)
+        except ValueError as error:
+            if propagate_value_error:
+                raise
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
         except (
             ConfigurationError,
             EntityNotFoundError,
@@ -359,7 +376,6 @@ class ShellComposition:
             SQLAlchemyError,
             OSError,
             ImportError,
-            ValueError,
             TypeError,
         ) as error:
             raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
