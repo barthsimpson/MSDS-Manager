@@ -11,6 +11,7 @@ from .catalog import (
     UsageLocationHistory,
 )
 from .documents import BhpDecision, DecisionEvidence, SdsDocument
+from .physical_review import PhysicalReview, PhysicalReviewItem
 from .safety import SafetyProfile, SdsComponent
 
 __all__ = [
@@ -18,6 +19,8 @@ __all__ = [
     "DecisionEvidence",
     "Manufacturer",
     "Product",
+    "PhysicalReview",
+    "PhysicalReviewItem",
     "ProductHistory",
     "ProductUsageLocation",
     "ProductUsageLocationHistory",

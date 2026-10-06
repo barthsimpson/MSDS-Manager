@@ -15,6 +15,11 @@ class UsageLocationStatus(StrEnum):
     INACTIVE = "INACTIVE"
 
 
+class ReviewStatus(StrEnum):
+    DRAFT = "DRAFT"
+    FINAL = "FINAL"
+
+
 class UnitCategory(StrEnum):
     VOLUME = "VOLUME"
     MASS = "MASS"

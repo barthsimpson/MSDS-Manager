@@ -7,6 +7,7 @@ from .product import SqlAlchemyProductRepository
 from .product_history import SqlAlchemyProductHistoryRepository
 from .sds_acceptance import SqlAlchemySdsAcceptanceRepository
 from .product_usage_location import SqlAlchemyProductUsageLocationRepository
+from .physical_review import SqlAlchemyPhysicalReviewRepository
 from .product_usage_location_history import (
     SqlAlchemyProductUsageLocationHistoryRepository,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "SqlAlchemySdsAcceptanceRepository",
     "SqlAlchemyProductUsageLocationHistoryRepository",
     "SqlAlchemyProductUsageLocationRepository",
+    "SqlAlchemyPhysicalReviewRepository",
     "SqlAlchemySupervisoryQuery",
     "SqlAlchemyAnalyticsQuery",
     "SqlAlchemyUsageLocationHistoryRepository",

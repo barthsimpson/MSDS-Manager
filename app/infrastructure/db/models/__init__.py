@@ -12,6 +12,7 @@ from .catalog import (
     UsageLocationModel,
 )
 from .documents import BhpDecisionModel, DecisionEvidenceModel, SdsDocumentModel
+from .physical_review import PhysicalReviewItemModel, PhysicalReviewModel
 from .safety import SafetyProfileModel, SdsComponentModel
 
 __all__ = [
@@ -21,6 +22,8 @@ __all__ = [
     "ManufacturerModel",
     "ProductHistoryModel",
     "ProductModel",
+    "PhysicalReviewItemModel",
+    "PhysicalReviewModel",
     "ProductUsageLocationHistoryModel",
     "ProductUsageLocationModel",
     "UnitOfMeasureModel",
