@@ -45,12 +45,71 @@ docs/task_reports/ raporty z wykonania Tasków
 
 Zasady pracy z Taskami opisują `AGENTS.md` i `docs/tasks/README.md`.
 
-## Wymagania
+## Uruchomienie w Dockerze (zalecane)
+
+Wymagany jest Docker z Docker Compose. `docker-compose.yml` uruchamia dwa
+kontenery:
+
+- `db` — PostgreSQL 17, dane w wolumenie `pgdata`,
+- `app` — aplikacja Streamlit; przy każdym starcie wykonuje
+  `alembic upgrade head`, a potem uruchamia interfejs.
+
+Pliki SDS i dowody BHP są zapisywane na dysku hosta, w katalogach
+`./data/sds` i `./data/bhp_evidence`. Utwórz je przed pierwszym startem:
+
+```bash
+mkdir -p data/sds data/bhp_evidence
+```
+
+```powershell
+New-Item -ItemType Directory -Force data\sds, data\bhp_evidence
+```
+
+Start:
+
+```bash
+docker compose up -d --build
+```
+
+Aplikacja jest dostępna pod adresem <http://localhost:8501>.
+
+Przydatne polecenia:
+
+```bash
+docker compose logs -f app                                # logi aplikacji
+docker compose exec app python scripts/check_environment.py  # diagnostyka
+docker compose exec app python scripts/smoke_application.py  # smoke test
+docker compose down                                       # zatrzymanie (dane zostają)
+docker compose down -v                                    # zatrzymanie i USUNIĘCIE bazy
+```
+
+Opcjonalne zmienne (np. w pliku `.env` obok `docker-compose.yml`):
+
+| Zmienna | Domyślnie | Znaczenie |
+|---|---|---|
+| `MSDS_DB_NAME` | `msds_manager` | nazwa bazy |
+| `MSDS_DB_USER` | `msds` | użytkownik bazy |
+| `MSDS_DB_PASSWORD` | `msds` | hasło bazy — zmień przed użyciem produkcyjnym |
+| `MSDS_APP_PORT` | `8501` | port aplikacji na hoście |
+
+Aplikacja nasłuchuje tylko na `127.0.0.1`. Baza nie jest wystawiona na
+zewnątrz kontenerów. Kopia zapasowa to zrzut bazy plus katalog `data/`:
+
+```bash
+docker compose exec db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup.sql
+```
+
+Na Linuksie kontener działa jako użytkownik o UID 1000. Jeśli Twój UID jest
+inny, zbuduj obraz z `docker compose build --build-arg APP_UID=$(id -u)`.
+
+## Uruchomienie natywne na Windows
+
+### Wymagania
 
 - Python
 - PostgreSQL uruchomiony natywnie w Windows
 
-## Przygotowanie środowiska na Windows
+### Przygotowanie środowiska
 
 ```powershell
 py -m venv .venv
@@ -73,19 +132,19 @@ Wymagane zmienne:
 
 Aplikacja nie tworzy katalogów SDS ani BHP — muszą istnieć przed startem.
 
-## Schemat bazy danych
+### Schemat bazy danych
 
 ```powershell
 .\.venv\Scripts\python.exe -m alembic upgrade head
 ```
 
-## Uruchomienie aplikacji
+### Uruchomienie aplikacji
 
 ```powershell
 .\.venv\Scripts\python.exe -m streamlit run app/presentation/streamlit/main.py
 ```
 
-## Diagnostyka środowiska
+### Diagnostyka środowiska
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_environment.py
