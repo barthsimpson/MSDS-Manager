@@ -14,6 +14,7 @@ from app.infrastructure.db.models import (
     ProductUsageLocationModel, SdsDocumentModel, UnitOfMeasureModel,
     UsageLocationModel,
 )
+from app.infrastructure.db.repositories.physical_review import latest_final_review_items_subquery
 
 
 class SqlAlchemyAnalyticsQuery(AnalyticsReadPort):
@@ -210,6 +211,8 @@ class SqlAlchemyAnalyticsQuery(AnalyticsReadPort):
         )
         peak_unit = aliased(UnitOfMeasureModel)
         monthly_unit = aliased(UnitOfMeasureModel)
+        review_unit = aliased(UnitOfMeasureModel)
+        latest_review = latest_final_review_items_subquery()
         statement = (
             select(
                 scoped.c.product_id, scoped.c.product_name, scoped.c.manufacturer_name,
@@ -220,12 +223,21 @@ class SqlAlchemyAnalyticsQuery(AnalyticsReadPort):
                 monthly_unit.code.label("monthly_consumption_unit_code"),
                 scoped.c.usage_status, scoped.c.current_sds_revision,
                 scoped.c.current_sds_issue_date, scoped.c.bhp_category,
+                latest_review.c.observed_quantity.label("review_observed_quantity"),
+                (latest_review.c.observed_quantity -
+                 latest_review.c.baseline_max_quantity).label("review_difference"),
+                review_unit.code.label("review_unit_code"),
             )
             .select_from(scoped)
             .outerjoin(active_relation, active_relation.c.product_id == scoped.c.product_id)
             .outerjoin(peak_unit, peak_unit.unit_id == active_relation.c.peak_quantity_unit_id)
             .outerjoin(monthly_unit,
                        monthly_unit.unit_id == active_relation.c.monthly_consumption_unit_id)
+            .outerjoin(latest_review, and_(
+                latest_review.c.product_id == scoped.c.product_id,
+                latest_review.c.location_id == active_relation.c.location_id,
+            ))
+            .outerjoin(review_unit, review_unit.unit_id == latest_review.c.baseline_unit_id)
         )
         if filters.usage_location_id is not None:
             statement = statement.where(or_(
@@ -249,4 +261,7 @@ class SqlAlchemyAnalyticsQuery(AnalyticsReadPort):
             current_sds_revision=row["current_sds_revision"],
             current_sds_issue_date=row["current_sds_issue_date"],
             bhp_category=AnalyticsBhpStatus(row["bhp_category"]),
+            review_observed_quantity=row["review_observed_quantity"],
+            review_difference=row["review_difference"],
+            review_unit_code=row["review_unit_code"],
         ) for row in rows]

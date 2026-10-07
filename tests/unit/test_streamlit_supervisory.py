@@ -56,6 +56,26 @@ def test_complete_active_row_and_read_only_controls(row):
         "Warunki / uwagi": "Stosować wentylację.", "Wymaga działania": "OK",
     }]
     assert len(app.selectbox) == 4
+    assert app.text_input(key="supervisory-search").label == "Produkt"
+    assert [app.selectbox(key=key).label for key in (
+        "supervisory-action", "supervisory-status", "supervisory-location",
+        "supervisory-bhp",
+    )] == ["Działanie", "Status", "Lokalizacja", "BHP"]
+    assert [
+        next(item.label for item in column.children.values() if hasattr(item, "label"))
+        for column in app.get("column")
+    ] == ["Produkt", "Działanie", "Status", "Lokalizacja", "BHP"]
+    assert app.selectbox(key="supervisory-action").options == [
+        "Wszystkie", "Wymagają działania",
+    ]
+    assert app.selectbox(key="supervisory-bhp").options == [
+        "Wszystkie", "Dopuszczony", "Niedopuszczony", "Brak decyzji",
+    ]
+    assert not app.get("expander")
+    assert not app.subheader
+    assert "p1" not in app.dataframe[0].value.to_string()
+    assert "s1" not in app.dataframe[0].value.to_string()
+    assert "b1" not in app.dataframe[0].value.to_string()
     assert not app.button
     assert len(app.text_input) == 1
     assert not app.get("file_uploader")

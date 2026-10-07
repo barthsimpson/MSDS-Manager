@@ -10,6 +10,12 @@ from app.application.dto.analytics import (
     AnalyticsBhpStatus, AnalyticsDashboardDto, AnalyticsFileAvailability,
     AnalyticsFilters, AnalyticsSdsStatus, ProductLocationAnalyticsRow,
 )
+from app.application.dto.physical_review import PhysicalReviewDetails, PhysicalReviewSummary
+from app.application.use_cases.physical_review import (
+    EmptyReviewPopulationError, FinalReviewImmutableError,
+    InvalidObservedQuantityError, ReviewAlreadyFinalError,
+    ReviewDraftAlreadyExistsError, ReviewNotFoundError,
+)
 from app.domain.enums import UsageLocationStatus
 from app.presentation.streamlit.composition import ShellComposition, ShellInitializationError
 
@@ -272,6 +278,13 @@ def _quantity(value: Decimal | None, unit: str | None) -> str:
     return "—" if value is None else f"{format(value.normalize(), 'f')} {unit or ''}".strip()
 
 
+def _difference(value: Decimal | None, unit: str | None) -> str:
+    if value is None:
+        return "—"
+    prefix = "+" if value > 0 else ""
+    return prefix + _quantity(value, unit)
+
+
 def _sds_detail(row: ProductLocationAnalyticsRow) -> str:
     parts = []
     if row.current_sds_revision:
@@ -287,6 +300,8 @@ def _detail_row(row: ProductLocationAnalyticsRow) -> dict[str, str]:
         "Producent": row.manufacturer_name,
         "Lokalizacja": row.location_name or "Brak",
         "MAX": _quantity(row.peak_quantity_value, row.peak_quantity_unit_code),
+        "Stan na dzień": _quantity(row.review_observed_quantity, row.review_unit_code),
+        "Różnica +/-": _difference(row.review_difference, row.review_unit_code),
         "Miesięczne zużycie": _quantity(row.monthly_consumption_value,
                                          row.monthly_consumption_unit_code),
         "Status produktu": PRODUCT_STATUS_LABELS[row.product_usage_status.value],
@@ -349,6 +364,138 @@ def _render_detail_view(composition: ShellComposition) -> None:
     st.dataframe([_detail_row(row) for row in rows], hide_index=True, width="stretch")
 
 
+def _review_rows(review: PhysicalReviewDetails) -> list[dict[str, str]]:
+    return [{
+        "Produkt": item.product_name,
+        "Lokalizacja": f"{item.location_code} · {item.location_name}",
+        "MAX": _quantity(item.baseline_max_quantity, item.unit_code),
+        "Stan na dzień": ("" if item.observed_quantity is None
+                          else format(item.observed_quantity, "f")),
+        "Różnica": _difference(item.difference, item.unit_code),
+    } for item in review.items]
+
+
+def _parse_observed(value: object) -> Decimal | None:
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        quantity = Decimal(str(value).strip())
+    except (ValueError, ArithmeticError) as error:
+        raise InvalidObservedQuantityError("Podaj nieujemną liczbę lub zostaw pole puste.") from error
+    if not quantity.is_finite() or quantity < 0:
+        raise InvalidObservedQuantityError("Podaj nieujemną liczbę lub zostaw pole puste.")
+    return quantity
+
+
+def _render_review_details(composition: ShellComposition, review: PhysicalReviewDetails) -> None:
+    st.caption(f"Data przeglądu: {review.summary.review_date.isoformat()}")
+    st.write(
+        f"Pozycje: {review.total_items} · Sprawdzone: {review.observed_items} "
+        f"· Niesprawdzone: {review.unobserved_items}"
+    )
+    rows = _review_rows(review)
+    if review.summary.status.value == "FINAL":
+        st.caption("Zatwierdzony przegląd — tylko do odczytu.")
+        st.dataframe(rows, hide_index=True, width="stretch")
+        return
+
+    st.caption("Wpisz ilość w jednostce MAX. Puste pole oznacza pozycję niesprawdzoną.")
+    edited = st.data_editor(
+        rows, hide_index=True, width="stretch", key="review-items-editor",
+        disabled=["Produkt", "Lokalizacja", "MAX", "Różnica"],
+        num_rows="fixed",
+    )
+    if st.button("Zapisz stany", key="review-save"):
+        edited_rows = edited.to_dict("records") if hasattr(edited, "to_dict") else edited
+        try:
+            values = [_parse_observed(row["Stan na dzień"]) for row in edited_rows]
+            for item, value in zip(review.items, values, strict=True):
+                if value != item.observed_quantity:
+                    composition.update_review_observed_quantity(item.review_item_id, value)
+        except InvalidObservedQuantityError as error:
+            st.error(str(error))
+        except (ShellInitializationError, FinalReviewImmutableError, ReviewNotFoundError):
+            st.error("Nie udało się zapisać stanów przeglądu. Odśwież widok i spróbuj ponownie.")
+        else:
+            st.success("Stany zapisane.")
+            st.rerun()
+
+    if review.unobserved_items:
+        st.warning(f"Niesprawdzone pozycje: {review.unobserved_items}. FINAL zachowa je bez wyniku.")
+        confirmed = st.checkbox(
+            "Potwierdzam zatwierdzenie przeglądu z niesprawdzonymi pozycjami",
+            key="review-confirm-incomplete",
+        )
+    else:
+        confirmed = True
+    finalize_col, discard_col = st.columns(2)
+    with finalize_col:
+        if st.button("Zatwierdź przegląd", key="review-finalize", disabled=not confirmed):
+            try:
+                composition.finalize_physical_review(review.summary.review_id)
+            except (ShellInitializationError, ReviewAlreadyFinalError, ReviewNotFoundError):
+                st.error("Nie udało się zatwierdzić przeglądu. Odśwież widok i spróbuj ponownie.")
+            else:
+                st.success("Przegląd zatwierdzony.")
+                st.rerun()
+    with discard_col:
+        if st.button("Odrzuć draft", key="review-discard"):
+            try:
+                composition.discard_physical_review_draft(review.summary.review_id)
+            except (ShellInitializationError, FinalReviewImmutableError, ReviewNotFoundError):
+                st.error("Nie udało się odrzucić draftu. Odśwież widok i spróbuj ponownie.")
+            else:
+                st.success("Draft odrzucony.")
+                st.rerun()
+
+
+def _review_label(review: PhysicalReviewSummary) -> str:
+    finalized = (review.finalized_at.strftime("%Y-%m-%d %H:%M")
+                 if review.finalized_at else "")
+    return f"{review.review_date.isoformat()} · zatwierdzono {finalized}"
+
+
+def _render_review_view(composition: ShellComposition) -> None:
+    with st.container(key="analytics-view-head", gap="small"):
+        st.subheader("Raport przeglądu")
+        st.caption("Stan fizyczny na wybrany dzień, zapisany jako historyczny przegląd.")
+    try:
+        draft = composition.get_active_physical_review_draft()
+        finals = [review for review in composition.list_physical_reviews()
+                  if review.status.value == "FINAL"]
+        details = composition.get_physical_review(draft.review_id) if draft else None
+    except (ShellInitializationError, ReviewNotFoundError):
+        st.error(READ_ERROR_MESSAGE)
+        return
+
+    if details is None:
+        review_date = st.date_input("Data przeglądu", value=date.today(),
+                                    key="review-date")
+        if st.button("Utwórz przegląd", key="review-create"):
+            try:
+                composition.create_physical_review(review_date)
+            except EmptyReviewPopulationError:
+                st.warning("Brak przypisań do aktywnych lokalizacji. Przegląd nie powstał.")
+            except ReviewDraftAlreadyExistsError:
+                st.warning("Istnieje już rozpoczęty przegląd. Odśwież widok.")
+            except ShellInitializationError:
+                st.error("Nie udało się utworzyć przeglądu. Spróbuj ponownie.")
+            else:
+                st.rerun()
+    else:
+        st.markdown("#### Rozpoczęty przegląd")
+        _render_review_details(composition, details)
+
+    if finals:
+        st.markdown("#### Zatwierdzone przeglądy")
+        selected = st.selectbox("Przegląd", finals, format_func=_review_label,
+                                key="review-final-selection")
+        try:
+            _render_review_details(composition, composition.get_physical_review(selected.review_id))
+        except (ShellInitializationError, ReviewNotFoundError):
+            st.error(READ_ERROR_MESSAGE)
+
+
 def _select_view(view: str) -> None:
     st.session_state["analytics-view"] = view
 
@@ -376,7 +523,4 @@ def render_analytics(composition: ShellComposition) -> None:
     elif active == "Zestawienie zbiorcze":
         _render_detail_view(composition)
     else:
-        with st.container(key="analytics-view-head", gap="small"):
-            st.subheader("Raport przeglądu")
-        st.info("Funkcja zostanie uruchomiona w kolejnym etapie.")
-        st.caption("Obszar przyszłego ANALYTICS-03 — Stan na dzień.")
+        _render_review_view(composition)

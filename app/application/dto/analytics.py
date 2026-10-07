@@ -111,6 +111,9 @@ class ProductLocationAnalyticsRow:
     current_sds_revision: str | None
     current_sds_issue_date: date | None
     bhp_category: AnalyticsBhpStatus
+    review_observed_quantity: Decimal | None = None
+    review_difference: Decimal | None = None
+    review_unit_code: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

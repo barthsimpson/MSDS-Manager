@@ -33,6 +33,14 @@ from app.application.dto import (
     ProductLocationAnalyticsRow,
 )
 from app.application.exceptions import EntityNotFoundError
+from app.application.dto.physical_review import PhysicalReviewDetails, PhysicalReviewSummary
+from app.application.use_cases.physical_review import (
+    CreatePhysicalReview, DiscardPhysicalReviewDraft, FinalizePhysicalReview,
+    GetActivePhysicalReviewDraft, GetPhysicalReview, ListPhysicalReviews,
+    UpdateReviewObservedQuantity,
+)
+from datetime import date
+from decimal import Decimal
 from app.application.use_cases.import_sds import ImportSds
 from app.application.use_cases.get_current_sds_file import CurrentSdsFile, GetCurrentSdsFile
 from app.application.use_cases.bhp_evidence import ImportBhpEvidence, ListBhpEvidence, ReadBhpEvidence
@@ -73,6 +81,7 @@ from app.infrastructure.db.repositories import (
     SqlAlchemySupervisoryQuery,
     SqlAlchemyManufacturerRepository,
     SqlAlchemyAnalyticsQuery,
+    SqlAlchemyPhysicalReviewRepository,
     SqlAlchemyUnitOfMeasureRepository,
 )
 from app.infrastructure.db.repositories.current_sds_query import SqlAlchemyCurrentSdsQuery
@@ -137,6 +146,65 @@ class ShellComposition:
                 return ListAnalyticsProductLocations(SqlAlchemyAnalyticsQuery(session)).execute(filters)
         except (SQLAlchemyError, OSError, ImportError, ValueError, RuntimeError) as error:
             raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
+
+    def get_active_physical_review_draft(self) -> PhysicalReviewSummary | None:
+        try:
+            with self.session_factory() as session:
+                return GetActivePhysicalReviewDraft(
+                    SqlAlchemyPhysicalReviewRepository(session)
+                ).execute()
+        except SQLAlchemyError as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
+
+    def get_physical_review(self, review_id: str) -> PhysicalReviewDetails:
+        try:
+            with self.session_factory() as session:
+                return GetPhysicalReview(
+                    SqlAlchemyPhysicalReviewRepository(session)
+                ).execute(review_id)
+        except SQLAlchemyError as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
+
+    def list_physical_reviews(self) -> list[PhysicalReviewSummary]:
+        try:
+            with self.session_factory() as session:
+                return ListPhysicalReviews(
+                    SqlAlchemyPhysicalReviewRepository(session)
+                ).execute()
+        except SQLAlchemyError as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
+
+    def _execute_review_write(self, operation):
+        try:
+            return TransactionExecutor(self.session_factory).execute(
+                lambda session: operation(SqlAlchemyPhysicalReviewRepository(session))
+            )
+        except (PersistenceError, SQLAlchemyError) as error:
+            raise ShellInitializationError(INITIALIZATION_ERROR_MESSAGE) from error
+
+    def create_physical_review(self, review_date: date) -> str:
+        return self._execute_review_write(
+            lambda repository: CreatePhysicalReview(repository).execute(review_date)
+        )
+
+    def update_review_observed_quantity(
+        self, review_item_id: str, value: Decimal | None
+    ) -> None:
+        self._execute_review_write(
+            lambda repository: UpdateReviewObservedQuantity(repository).execute(
+                review_item_id, value
+            )
+        )
+
+    def discard_physical_review_draft(self, review_id: str) -> None:
+        self._execute_review_write(
+            lambda repository: DiscardPhysicalReviewDraft(repository).execute(review_id)
+        )
+
+    def finalize_physical_review(self, review_id: str) -> None:
+        self._execute_review_write(
+            lambda repository: FinalizePhysicalReview(repository).execute(review_id)
+        )
 
     def list_supervisory_products(self) -> list[SupervisoryProductRow]:
         if self.settings is None:

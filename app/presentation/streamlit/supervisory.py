@@ -45,6 +45,12 @@ def _table_row(row: SupervisoryProductRow) -> dict[str, str]:
 
 
 def render_supervisory(composition: ShellComposition) -> None:
+    st.markdown("""
+<style>
+.st-key-supervisory-filters { margin-bottom: .25rem; }
+.st-key-supervisory-filters [data-testid="stWidgetLabel"] { margin-bottom: .15rem; }
+</style>
+""", unsafe_allow_html=True)
     st.header("Widok nadzorczy")
     try:
         rows = composition.list_supervisory_products()
@@ -55,28 +61,37 @@ def render_supervisory(composition: ShellComposition) -> None:
         st.info("Brak produktów do wyświetlenia.")
         return
 
-    search = st.text_input("Szukaj produktu", key="supervisory-search")
-    action = st.selectbox(
-        "Wymaga działania", ("Wszystkie", "Wymagają działania"), key="supervisory-action"
-    )
-    status = st.selectbox(
-        "Status produktu", (None, *ProductUsageStatus),
-        format_func=lambda value: "Wszystkie" if value is None else value.value,
-        key="supervisory-status",
-    )
-    location = st.selectbox(
-        "Lokalizacja",
-        (None, *sorted({row.usage_location_name for row in rows
-                        if row.usage_location_name is not None}), ""),
-        format_func=lambda value: (
-            "Wszystkie" if value is None else "Brak miejsca" if value == "" else value
-        ),
-        key="supervisory-location",
-    )
-    bhp = st.selectbox(
-        "BHP", ("Wszystkie", "Dopuszczony", "Niedopuszczony", "Brak decyzji"),
-        key="supervisory-bhp",
-    )
+    with st.container(key="supervisory-filters", gap="small"):
+        product_col, action_col, status_col, location_col, bhp_col = st.columns(
+            [1.9, 1.15, 1.1, 1.4, 1.1], gap="small"
+        )
+        with product_col:
+            search = st.text_input("Produkt", key="supervisory-search")
+        with action_col:
+            action = st.selectbox(
+                "Działanie", ("Wszystkie", "Wymagają działania"), key="supervisory-action"
+            )
+        with status_col:
+            status = st.selectbox(
+                "Status", (None, *ProductUsageStatus),
+                format_func=lambda value: "Wszystkie" if value is None else value.value,
+                key="supervisory-status",
+            )
+        with location_col:
+            location = st.selectbox(
+                "Lokalizacja",
+                (None, *sorted({row.usage_location_name for row in rows
+                                if row.usage_location_name is not None}), ""),
+                format_func=lambda value: (
+                    "Wszystkie" if value is None else "Brak miejsca" if value == "" else value
+                ),
+                key="supervisory-location",
+            )
+        with bhp_col:
+            bhp = st.selectbox(
+                "BHP", ("Wszystkie", "Dopuszczony", "Niedopuszczony", "Brak decyzji"),
+                key="supervisory-bhp",
+            )
     bhp_status = {
         "Dopuszczony": BhpDecisionStatus.APPROVED,
         "Niedopuszczony": BhpDecisionStatus.REJECTED,

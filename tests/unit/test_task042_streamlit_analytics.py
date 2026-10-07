@@ -108,6 +108,12 @@ class FakeComposition:
             bhp_category=Bhp.NO_DECISION,
         )]
 
+    def get_active_physical_review_draft(self):
+        return None
+
+    def list_physical_reviews(self):
+        return []
+
 
 def _app(composition):
     def render(composition):
@@ -196,6 +202,8 @@ def test_dashboard_cards_charts_filters_and_local_navigation():
     assert len(app.dataframe) == 1
     assert not app.get("vega_lite_chart")
     assert app.dataframe[0].value["MAX"].tolist() == ["0 kg", "—"]
+    assert app.dataframe[0].value["Stan na dzień"].tolist() == ["—", "—"]
+    assert app.dataframe[0].value["Różnica +/-"].tolist() == ["—", "—"]
     assert app.dataframe[0].value["Miesięczne zużycie"].tolist() == ["0 kg", "—"]
     assert app.dataframe[0].value["SDS / rewizja"].tolist() == ["Rewizja 2 · 2026-08-01", "—"]
     assert app.dataframe[0].value["Lokalizacja"].tolist() == ["Hala A", "Brak"]
@@ -211,7 +219,8 @@ def test_dashboard_cards_charts_filters_and_local_navigation():
 
     app.button(key="analytics-view-Raport przeglądu").click().run()
     assert app.subheader[0].value == "Raport przeglądu"
-    assert app.info[0].value == "Funkcja zostanie uruchomiona w kolejnym etapie."
+    assert app.date_input(key="review-date").label == "Data przeglądu"
+    assert app.button(key="review-create").label == "Utwórz przegląd"
     assert not any(button.label == "Eksport" for button in app.button)
     assert not app.dataframe
     assert not app.get("vega_lite_chart")
