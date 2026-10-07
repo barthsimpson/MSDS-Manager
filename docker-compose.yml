@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${MSDS_DB_NAME:-msds_manager}
+      POSTGRES_USER: ${MSDS_DB_USER:-msds}
+      POSTGRES_PASSWORD: ${MSDS_DB_PASSWORD:-msds}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://${MSDS_DB_USER:-msds}:${MSDS_DB_PASSWORD:-msds}@db:5432/${MSDS_DB_NAME:-msds_manager}
+      SDS_ROOT_PATH: /data/sds
+      BHP_EVIDENCE_ROOT_PATH: /data/bhp_evidence
+    volumes:
+      - ./data/sds:/data/sds
+      - ./data/bhp_evidence:/data/bhp_evidence
+    ports:
+      - "127.0.0.1:${MSDS_APP_PORT:-8501}:8501"
+
+volumes:
+  pgdata:
