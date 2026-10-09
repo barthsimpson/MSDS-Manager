@@ -1,0 +1,37 @@
+# Testy w osobnym projekcie Compose: własne kontenery i sieć,
+# bez dostępu do bazy aplikacji z docker-compose.yml.
+#
+#   docker compose -f docker-compose.test.yml run --rm test
+#   docker compose -f docker-compose.test.yml down
+name: msds-manager-test
+
+services:
+  # Jednorazowa baza w pamięci (tmpfs). Nazwa msds_manager jest wymagana
+  # przez testy integracyjne.
+  test-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: msds_manager
+      POSTGRES_USER: msds_test
+      POSTGRES_PASSWORD: msds_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U msds_test -d msds_manager"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+
+  test:
+    build: .
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://msds_test:msds_test@test-db:5432/msds_manager
+      SDS_ROOT_PATH: /tmp/sds
+      BHP_EVIDENCE_ROOT_PATH: /tmp/bhp_evidence
+    volumes:
+      - .:/app:ro
+    entrypoint: ["sh", "-c", "mkdir -p /tmp/sds /tmp/bhp_evidence && python -m alembic upgrade head >/dev/null && exec python -m pytest -v -p no:cacheprovider --basetemp=/tmp/pytest \"$$@\"", "--"]
+    command: []

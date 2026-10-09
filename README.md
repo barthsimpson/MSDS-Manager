@@ -73,6 +73,26 @@ docker compose up -d --build
 
 Aplikacja jest dostępna pod adresem <http://localhost:8501>.
 
+### Praca nad kodem (tryb watch)
+
+```bash
+docker compose up --watch
+```
+
+Polecenie działa na pierwszym planie i pokazuje logi aplikacji. Dopóki działa:
+
+- zmiana w `app/` lub `migrations/` → pliki trafiają do kontenera, aplikacja
+  restartuje się po kilku sekundach (migracje wykonują się przy starcie),
+- zmiana w `pyproject.toml` (np. nowa biblioteka) → obraz przebudowuje się
+  automatycznie.
+
+`Ctrl+C` zatrzymuje aplikację i bazę. Dane bazy zostają w wolumenie.
+
+**PyCharm:** w repo jest konfiguracja uruchomieniowa
+`.run/MSDS Manager (Docker).run.xml`. Wybierz „MSDS Manager (Docker)” na
+liście konfiguracji obok przycisku ▶. ▶ uruchamia `docker compose up --watch`,
+■ zatrzymuje kontenery.
+
 Przydatne polecenia:
 
 ```bash
@@ -157,9 +177,42 @@ odczyt przez warstwę aplikacji.
 
 ## Testy
 
+### W Dockerze (zalecane)
+
+```bash
+docker compose -f docker-compose.test.yml run --rm test
+```
+
+Testy mają osobny plik `docker-compose.test.yml` i osobny projekt Compose
+(`msds-manager-test`). Polecenie uruchamia kontener `test-db` z jednorazową bazą
+PostgreSQL w pamięci, wykonuje na niej migracje i odpala `pytest -v` (wynik
+każdego testu osobno). Baza
+aplikacji (`db`) i katalog `data/` nie są używane — żadne polecenie na pliku
+testowym, także `down -v`, ich nie dotyka.
+
+Kod i testy są montowane z bieżącego katalogu, więc po zmianie kodu nie trzeba
+przebudowywać obrazu. Argumenty po `test` trafiają do `pytest`:
+
+```bash
+docker compose -f docker-compose.test.yml run --rm test tests/unit -q
+docker compose -f docker-compose.test.yml run --rm test -k analytics
+```
+
+Po testach usuń bazę testową, żeby kolejne uruchomienie startowało od zera:
+
+```bash
+docker compose -f docker-compose.test.yml down
+```
+
+Po zmianie zależności w `pyproject.toml` dodaj `--build`:
+`docker compose -f docker-compose.test.yml run --rm --build test`.
+
+### Natywnie na Windows
+
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Testy integracyjne korzystają z bazy wskazanej w `DATABASE_URL`. Testy
+Testy integracyjne korzystają z bazy wskazanej w `DATABASE_URL` i zapisują w niej
+dane testowe — nie uruchamiaj ich na bazie z prawdziwymi danymi. Testy
 wymagające pustej bazy są pomijane, jeśli baza zawiera dane.
