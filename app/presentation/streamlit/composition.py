@@ -13,7 +13,6 @@ from app.application.dto import (
     AddSdsRevisionInput,
     AcceptSdsInput,
     AssignProductUsageLocationInput,
-    AssignLegacyUsageLocationCodeInput,
     CreateUsageLocationInput,
     ProductDetails,
     ProductListItem,
@@ -47,7 +46,6 @@ from app.application.use_cases.bhp_evidence import ImportBhpEvidence, ListBhpEvi
 from app.domain.models import UnitOfMeasure
 from app.application.use_cases import (
     AssignProductUsageLocation,
-    AssignLegacyUsageLocationCode,
     CreateUsageLocation,
     DeactivateUsageLocation,
     GetProductDetails,
@@ -383,16 +381,6 @@ class ShellComposition:
     def create_usage_location(self, data: CreateUsageLocationInput) -> None:
         self._execute_write(
             lambda session: CreateUsageLocation(
-                SqlAlchemyUsageLocationRepository(session)
-            ).execute(data),
-            propagate_value_error=True,
-        )
-
-    def assign_legacy_usage_location_code(
-        self, data: AssignLegacyUsageLocationCodeInput
-    ) -> None:
-        self._execute_write(
-            lambda session: AssignLegacyUsageLocationCode(
                 SqlAlchemyUsageLocationRepository(session)
             ).execute(data),
             propagate_value_error=True,

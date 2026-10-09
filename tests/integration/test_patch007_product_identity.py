@@ -76,6 +76,7 @@ def test_product_identity_edit_preserves_sds_bhp_and_usage() -> None:
                     ),
                     UsageLocationModel(
                         location_id=location_id,
+                        location_code=f"P007-{suffix[:16].upper()}",
                         location_name="PATCH-007 Location",
                         status=UsageLocationStatus.ACTIVE,
                     ),

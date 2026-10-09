@@ -175,7 +175,7 @@ def test_task016_sprint2_end_to_end_acceptance(
         assert app.exception == []
         assert app.header[0].value == "Produkty"
         assert app.dataframe[0].value.columns.tolist() == [
-            "Produkt", "Kod producenta", "Producent", "Status", "SDS", "BHP"
+            "Produkt", "Kod producenta", "Producent", "Status", "SDS", "Rewizja SDS", "BHP"
         ]
         assert product_id not in str(app.dataframe[0].value)
         assert any("TASK-016 Fixture Product" in item.value for item in app.text)

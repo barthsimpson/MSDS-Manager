@@ -8,8 +8,3 @@ class CreateUsageLocationInput:
     location_name: str
     location_code: str
 
-
-@dataclass(frozen=True, slots=True)
-class AssignLegacyUsageLocationCodeInput:
-    location_id: str
-    location_code: str

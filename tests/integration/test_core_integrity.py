@@ -52,6 +52,10 @@ def identifier(prefix: str) -> str:
     return f"task006-{prefix}-{uuid4().hex}"
 
 
+def location_code() -> str:
+    return f"T006-{uuid4().hex[:16].upper()}"
+
+
 def add_product(connection: Connection, label: str) -> str:
     manufacturer_id = identifier(f"manufacturer-{label}")
     product_id = identifier(f"product-{label}")
@@ -150,6 +154,7 @@ def add_usage_location(connection: Connection, label: str) -> str:
         insert(Base.metadata.tables["usage_locations"]),
         {
             "location_id": location_id,
+            "location_code": location_code(),
             "location_name": f"TASK-008 Location {label}",
             "status": UsageLocationStatus.ACTIVE,
         },
@@ -165,6 +170,7 @@ def test_usage_location_status_constraint(connection: Connection) -> None:
             insert(table),
             {
                 "location_id": identifier(f"location-{status.value.lower()}"),
+                "location_code": location_code(),
                 "location_name": f"TASK-009-ALIGN {status.value}",
                 "status": status,
             },
@@ -173,10 +179,11 @@ def test_usage_location_status_constraint(connection: Connection) -> None:
     with pytest.raises(IntegrityError) as error_info:
         with connection.begin_nested():
             connection.exec_driver_sql(
-                "INSERT INTO usage_locations (location_id, location_name, status) "
-                "VALUES (%s, %s, %s)",
+                "INSERT INTO usage_locations (location_id, location_code, location_name, status) "
+                "VALUES (%s, %s, %s, %s)",
                 (
                     identifier("location-invalid"),
+                    location_code(),
                     "TASK-009-ALIGN INVALID",
                     "ARCHIVED",
                 ),

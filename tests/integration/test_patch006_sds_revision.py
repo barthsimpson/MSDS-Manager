@@ -125,6 +125,7 @@ def test_add_revision_preserves_product_usage_and_previous_bhp(
             session.add(
                 UsageLocationModel(
                     location_id=location_id,
+                    location_code=f"P006-{suffix[:16].upper()}",
                     location_name="PATCH-006 Location",
                     status=UsageLocationStatus.ACTIVE,
                 )

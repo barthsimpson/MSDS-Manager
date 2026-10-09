@@ -126,6 +126,7 @@ def test_delete_product_removes_owned_records_and_preserves_shared_data(
                     ),
                     UsageLocationModel(
                         location_id=location_id,
+                        location_code=f"P008-{suffix[:16].upper()}",
                         location_name="Shared location",
                         status=UsageLocationStatus.ACTIVE,
                     ),

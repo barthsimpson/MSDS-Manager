@@ -1,7 +1,6 @@
 """Application use cases package."""
 
 from .assign_product_usage_location import AssignProductUsageLocation
-from .assign_legacy_usage_location_code import AssignLegacyUsageLocationCode
 from .change_usage_location_status import (
     DeactivateUsageLocation,
     ReactivateUsageLocation,
@@ -25,7 +24,6 @@ from .register_bhp_decision import RegisterBhpDecision
 
 __all__ = [
     "AssignProductUsageLocation",
-    "AssignLegacyUsageLocationCode",
     "CreateUsageLocation",
     "DeactivateUsageLocation",
     "GetProductDetails",

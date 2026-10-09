@@ -8,7 +8,6 @@ import streamlit as st
 from app.application.dto import (
     AddSdsRevisionInput,
     AssignProductUsageLocationInput,
-    AssignLegacyUsageLocationCodeInput,
     CreateUsageLocationInput,
     ProductDetails,
     ProductListItem,
@@ -511,8 +510,6 @@ def render_product_registry(composition: ShellComposition) -> None:
 def render_usage_locations(composition: ShellComposition) -> None:
     st.header("Stanowiska")
     locations = composition.list_usage_locations()
-    missing_count = sum(location.location_code is None for location in locations)
-    st.caption(f"Brak symbolu: {missing_count}")
     if locations:
         symbol_header, name_header, status_header, action_header = st.columns([2, 3, 1, 2])
         symbol_header.markdown("**Symbol**")
@@ -522,21 +519,7 @@ def render_usage_locations(composition: ShellComposition) -> None:
         for location in locations:
             with st.container(border=True):
                 symbol_col, name_col, status_col, action_col = st.columns([2, 3, 1, 2])
-                with symbol_col:
-                    st.write(location.location_code or "BRAK SYMBOLU")
-                    if location.location_code is None:
-                        code = st.text_input(
-                            "Symbol", key=f"legacy-code-{location.location_id}",
-                            label_visibility="collapsed", placeholder="Symbol",
-                        )
-                        if st.button("Uzupełnij", key=f"legacy-assign-{location.location_id}"):
-                            try:
-                                composition.assign_legacy_usage_location_code(
-                                    AssignLegacyUsageLocationCodeInput(location.location_id, code)
-                                )
-                                st.rerun()
-                            except (ShellInitializationError, ValueError) as error:
-                                st.error(str(error))
+                symbol_col.write(location.location_code)
                 name_col.write(location.location_name)
                 status_col.write(location.status.value)
                 action = (

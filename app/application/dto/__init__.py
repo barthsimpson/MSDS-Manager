@@ -17,7 +17,7 @@ from .analytics import (
     AnalyticsKpiDto, AnalyticsSdsStatus, AttentionSummaryDto, BhpStatusDistributionDto,
     ManufacturerSummaryRow, ProductAnalyticsFact, ProductLocationAnalyticsRow, SdsTrendPoint,
 )
-from .usage_locations import AssignLegacyUsageLocationCodeInput, CreateUsageLocationInput
+from .usage_locations import CreateUsageLocationInput
 from .sds import (
     AddSdsRevisionInput,
     AcceptSdsInput,
@@ -39,7 +39,6 @@ from .bhp_decisions import (
 __all__ = [
     "AssignProductUsageLocationInput",
     "CreateUsageLocationInput",
-    "AssignLegacyUsageLocationCodeInput",
     "ProductDetails",
     "ProductListItem",
     "ProductUsageLocationDetails",

@@ -106,7 +106,8 @@ def location(session, product_id, name, *, status=UsageLocationStatus.ACTIVE,
              peak=0, monthly=None, unit="kg"):
     location_id = uuid4().hex
     session.execute(insert(UsageLocationModel).values(
-        location_id=location_id, location_name=name, status=status,
+        location_id=location_id, location_code=f"T026-{location_id[:16].upper()}",
+        location_name=name, status=status,
     ))
     session.execute(insert(ProductUsageLocationModel).values(
         product_id=product_id, location_id=location_id, peak_quantity_value=peak,
