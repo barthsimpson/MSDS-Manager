@@ -29,6 +29,21 @@ services:
       - ./data/bhp_evidence:/data/bhp_evidence
     ports:
       - "127.0.0.1:${MSDS_APP_PORT:-8501}:8501"
+    # Tryb deweloperski: `docker compose up --watch`.
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./app
+          target: /app/app
+          ignore:
+            - "**/__pycache__/"
+        - action: sync+restart
+          path: ./migrations
+          target: /app/migrations
+          ignore:
+            - "**/__pycache__/"
+        - action: rebuild
+          path: ./pyproject.toml
 
 volumes:
   pgdata:
