@@ -1,4 +1,4 @@
-"""TASK-043 checks against a disposable PostgreSQL database at migration head."""
+"""usage_locations.location_code checks against a disposable PostgreSQL database at migration head."""
 
 from uuid import uuid4
 
@@ -32,7 +32,7 @@ def connection():
     engine.dispose()
 
 
-def _reject_sql(connection, code: str) -> None:
+def _reject_sql(connection, code: str | None) -> None:
     savepoint = connection.begin_nested()
     try:
         with pytest.raises((IntegrityError, DataError)):
@@ -45,23 +45,15 @@ def _reject_sql(connection, code: str) -> None:
         savepoint.rollback()
 
 
-def test_location_code_schema_and_legacy_read(connection) -> None:
+def test_location_code_schema(connection) -> None:
     column = next(c for c in inspect(connection).get_columns("usage_locations")
                   if c["name"] == "location_code")
-    assert column["nullable"] is True
+    assert column["nullable"] is False
     assert column["type"].length == 32
-    repository = SqlAlchemyUsageLocationRepository(Session(bind=connection))
-    legacy = repository.get_by_id("task043-pre-migration")
-    assert legacy is not None
-    assert legacy.location_name == "Historical location"
-    assert legacy.location_code is None
-    assert any(row.location_id == legacy.location_id and row.location_code is None
-               for row in repository.list_all())
     assert "location_code" not in {
         column["name"] for column in inspect(connection).get_columns("usage_location_history")
     }
-    assert connection.scalar(text("SELECT status FROM usage_location_history "
-                                  "WHERE history_id = 'task043-pre-history'")) == "ACTIVE"
+    _reject_sql(connection, None)
     _reject_sql(connection, "lower")
     _reject_sql(connection, "-START")
     _reject_sql(connection, "A" * 33)

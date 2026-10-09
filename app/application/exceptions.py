@@ -16,11 +16,6 @@ class DuplicateLocationCodeError(ValueError):
         super().__init__(f"Usage location code already exists: {location_code}")
 
 
-class LocationCodeAlreadyAssignedError(ValueError):
-    def __init__(self, location_id: str) -> None:
-        super().__init__("Usage location already has a code.")
-
-
 class InactiveUnitOfMeasureError(ValueError):
     def __init__(self, unit_id: str) -> None:
         super().__init__(f"Unit of measure is inactive: {unit_id}")
