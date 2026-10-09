@@ -13,3 +13,4 @@ tests/
 Dockerfile
 docker-compose.yml
 .dockerignore
+docker-compose.test.yml
