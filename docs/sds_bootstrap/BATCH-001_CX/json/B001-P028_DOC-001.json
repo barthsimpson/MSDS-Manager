@@ -1,0 +1,103 @@
+{
+  "schema": "SDS-JSON-001",
+  "schema_version": "0.1",
+  "source": {
+    "original_filename": "Cx80 XBRAKE CLEANER rew03 15.01.2025.pdf",
+    "file_sha256": "d4be1dde7758e20ea442df5f9905f3d5de61f2f054fc464448ec213a3d66dc20",
+    "page_count": 11,
+    "language": "pl",
+    "readability_status": "READABLE"
+  },
+  "documents": [
+    {
+      "document_key": "DOC-001",
+      "page_range": {
+        "from": 1,
+        "to": 11
+      },
+      "review_status": "PENDING_REVIEW",
+      "product": {
+        "product_name": {
+          "value": "XBRAKE CLEANER liquid",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": "1",
+              "subsection": "1.1",
+              "label": "Identyfikator produktu",
+              "source_text": "1.1. Identyfikator produktu XBRAKE CLEANER liquid"
+            }
+          ]
+        },
+        "manufacturer_product_code": {
+          "value": null,
+          "state": "NOT_FOUND",
+          "evidence": []
+        }
+      },
+      "document_metadata": {
+        "issue_date": {
+          "value": "2025-01-15",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Data aktualizacji (nagłówek)",
+              "source_text": "Data aktualizacji 15.01.2025 Numer wersji 3.0"
+            }
+          ]
+        },
+        "revision": {
+          "value": "3.0",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Numer wersji (nagłówek)",
+              "source_text": "Data aktualizacji 15.01.2025 Numer wersji 3.0"
+            }
+          ]
+        }
+      },
+      "parties": [
+        {
+          "role": "MANUFACTURER",
+          "name": {
+            "value": "CX80 POLSKA",
+            "state": "FOUND",
+            "evidence": [
+              {
+                "page": 1,
+                "section": "1",
+                "subsection": "1.3",
+                "label": "Producent",
+                "source_text": "Producent\nNazwa lub nazwa handlowa CX80 POLSKA, CX80 GmbH"
+              }
+            ]
+          }
+        }
+      ],
+      "safety_profile": {},
+      "components": [],
+      "validation": {
+        "status": "REQUIRES_HUMAN_REVIEW",
+        "issues": [
+          {
+            "code": "FILENAME_PRODUCT_CONFLICT",
+            "message": "Sekcja 1.1 wskazuje XBRAKE CLEANER liquid, a nazwa pliku pomija liquid."
+          }
+        ]
+      }
+    }
+  ],
+  "extraction_report": {
+    "logical_sds_count": 1,
+    "warnings": [],
+    "errors": []
+  }
+}

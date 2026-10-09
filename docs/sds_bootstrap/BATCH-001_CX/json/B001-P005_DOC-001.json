@@ -1,0 +1,103 @@
+{
+  "schema": "SDS-JSON-001",
+  "schema_version": "0.1",
+  "source": {
+    "original_filename": "BONDICX 48 26.01.2021 rew. 2.0.pdf",
+    "file_sha256": "1e0ea1966a591aee27e7e3e2a33bde8bfc8a7703f6618dc2a3bb0b42a247d3a2",
+    "page_count": 9,
+    "language": "pl",
+    "readability_status": "READABLE"
+  },
+  "documents": [
+    {
+      "document_key": "DOC-001",
+      "page_range": {
+        "from": 1,
+        "to": 9
+      },
+      "review_status": "PENDING_REVIEW",
+      "product": {
+        "product_name": {
+          "value": "BONDICX 48",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": "1",
+              "subsection": "1.1",
+              "label": "Identyfikator produktu",
+              "source_text": "1.1. Identyfikator produktu BONDICX 48"
+            }
+          ]
+        },
+        "manufacturer_product_code": {
+          "value": null,
+          "state": "NOT_FOUND",
+          "evidence": []
+        }
+      },
+      "document_metadata": {
+        "issue_date": {
+          "value": "2021-02-26",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Data utworzenia (nagłówek)",
+              "source_text": "Data utworzenia 26.02.2021"
+            }
+          ]
+        },
+        "revision": {
+          "value": "1.0",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Numer wersji (nagłówek)",
+              "source_text": "Data aktualizacji Numer wersji 1.0"
+            }
+          ]
+        }
+      },
+      "parties": [
+        {
+          "role": "MANUFACTURER",
+          "name": {
+            "value": "CX 80 POLSKA AGATA NADERA DARIUSZ NADERA SPÓŁKA JAWNA",
+            "state": "FOUND",
+            "evidence": [
+              {
+                "page": 1,
+                "section": "1",
+                "subsection": "1.3",
+                "label": "Producent",
+                "source_text": "Producent\nNazwa lub nazwa handlowa CX 80 POLSKA AGATA NADERA\nDARIUSZ NADERA SPÓŁKA JAWNA"
+              }
+            ]
+          }
+        }
+      ],
+      "safety_profile": {},
+      "components": [],
+      "validation": {
+        "status": "REQUIRES_HUMAN_REVIEW",
+        "issues": [
+          {
+            "code": "FILENAME_METADATA_CONFLICT",
+            "message": "Data i rewizja w nazwie pliku różnią się od bieżących metadanych w nagłówku SDS."
+          }
+        ]
+      }
+    }
+  ],
+  "extraction_report": {
+    "logical_sds_count": 1,
+    "warnings": [],
+    "errors": []
+  }
+}

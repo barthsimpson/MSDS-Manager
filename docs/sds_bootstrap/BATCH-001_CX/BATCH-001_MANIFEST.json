@@ -1,0 +1,486 @@
+{
+  "batch": "BATCH-001_CX",
+  "input_directory": "V:\\iso\\1. System Jakości AS-pl\\3. Rejestry\\PP02 UTR_Chemia Przemyslowa_Testy_Odpady\\2. Karty charakterystyk substancji\\1. srodki przemyslowe\\1. Karty 2023\\Paczki\\Paczka1 cx",
+  "pdf_count": 37,
+  "files": [
+    {
+      "id": "B001-P001",
+      "source_file": "ALUCYNK 23.01.2023 rew. 2.0.pdf",
+      "sha256": "a5078d259e7d34ff1b89b54e39925ba0b642873a2a6ab22a21ed8af834c81442",
+      "page_count": 12,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P001_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P002",
+      "source_file": "AUTO WELD 24.01.2023 rew. 2.0.pdf",
+      "sha256": "024d726a3dfc78ad18a81d2b089f65ae7ea3e40fd94073ae96f92d426eb594bc",
+      "page_count": 10,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P002_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P003",
+      "source_file": "AUTO WELD utwardzacz 24.01.2023 rew. 2.0.pdf",
+      "sha256": "ff218e83ae2d87b2d9fc2ffb77790e9e4e0ffa858afef690875c2d62f8ac6f71",
+      "page_count": 10,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P003_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P004",
+      "source_file": "BONDICX 23.01.2023 rew. 2.0.pdf",
+      "sha256": "7d0d0dab158e6f0bee3e548966f80a142bd235d68a7a29f2110fd189c5e2f101",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P004_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P005",
+      "source_file": "BONDICX 48 26.01.2021 rew. 2.0.pdf",
+      "sha256": "1e0ea1966a591aee27e7e3e2a33bde8bfc8a7703f6618dc2a3bb0b42a247d3a2",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P005_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P006",
+      "source_file": "BONDICX 96 23.01.2023 rew. 2.0.pdf",
+      "sha256": "e6335dc8eb597a56260e149c1a85ec8ac6dad19f8c510a368ace345373544823",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P006_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P007",
+      "source_file": "BONDICX GEL 23.01.2023 rew. 2.0.pdf",
+      "sha256": "38611aeb9372ba86b1a08f2521decda3cccf8fca750a800cc278002435490134",
+      "page_count": 8,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P007_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P008",
+      "source_file": "CLEANER PROF 30.01.2019 rew. 2.0.pdf",
+      "sha256": "d0cd7e31cd45940a50b8a43f0501ea22546383a4646fa2073783a3b4e0dfefa0",
+      "page_count": 11,
+      "readability": "PARTIALLY_READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P008_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P009",
+      "source_file": "cx 80 SMAR LITOWY AEROZOL 24.01.2023 rew. 2.0.pdf",
+      "sha256": "0da8a0a3d34beafa30d4b582507f129108d1e6b339f445506af9d170d8ca518f",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P009_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P010",
+      "source_file": "cx 80 Smar molibdenowy 23.01.2023 rew. 2.0.pdf",
+      "sha256": "9fe67cd9c528d4702599ad764e31d6b17ae7113ab0ff10ff44a6ffb4743c5a04",
+      "page_count": 7,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P010_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P011",
+      "source_file": "CX CLEANER PROF liquid rew. 2.0 23.01.2023.pdf",
+      "sha256": "fef92edb18208349fddf6e28ee50674a38e8933643bac71f64e12d1666d8388b",
+      "page_count": 11,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P011_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P012",
+      "source_file": "CX CLEANER PROF rew. 2.0 23.01.2023.pdf",
+      "sha256": "a1fbc73a93bdf2681f86f155f2d4be206c2bd9d8fba53569fcbaac395d677203",
+      "page_count": 12,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P012_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P013",
+      "source_file": "CX80 Aktywator do klejÃ³w anaerobowych_23.01.2023 rew.2.pdf",
+      "sha256": "e91f1cb88f72eac1a550d54500903f24e060fd898ca8075a210ba2fd35977959",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P013_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P014",
+      "source_file": "cx80 AKTYWATOR DO KLEJÓW CYJANOAKRYLOWYCH płyn 06.04.2022 rew. 1.0.pdf",
+      "sha256": "09d9f4d2dad6216456a783fcfc46ac5e5fd24aca6ea792145ec1bf0c969cbba9",
+      "page_count": 10,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P014_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P015",
+      "source_file": "cx80 BONDICX 06 rew02 23.01.2023.pdf",
+      "sha256": "7d0d0dab158e6f0bee3e548966f80a142bd235d68a7a29f2110fd189c5e2f101",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P015_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P016",
+      "source_file": "cx80 BONDICX 20 2 rew02 23.01.2023.pdf",
+      "sha256": "9871e9b380534b2c22a845ef48eef8292a47cb5a99a7750895e3a24c3e44c58b",
+      "page_count": 8,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P016_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P017",
+      "source_file": "cx80 BONDICX 22 rew02 23.01.2023.pdf",
+      "sha256": "b1d4596a220577b3a21db0bc6782c42a656d37f9538e67c3f9ae3f546f9af7c9",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P017_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P018",
+      "source_file": "cx80 BONDICX 60 rew02 23.01.2023.pdf",
+      "sha256": "bfc8c2dc50258b51e04dc84bbf2300ed7ee0398d6e7f3cb6b3cbc4369adcfb13",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P018_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P019",
+      "source_file": "cx80 BONDICX rew03 05.02.2025.pdf",
+      "sha256": "cab8df2cd7478aad1ecbe570e95d9fdef149786014278fd93ddf55bb14475fe3",
+      "page_count": 10,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P019_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P020",
+      "source_file": "cx80 CONTACX PCC.pdf",
+      "sha256": "2dd395c96bdb9fb1673d54e2c1c25e6be0bdafba92519b0c7a97a5961ccfee89",
+      "page_count": 12,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P020_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P021",
+      "source_file": "cx80 Label Remover Aerosol 30.01.2019 rew. 3.0.pdf",
+      "sha256": "89928bdaa21f07f602fe39774baa066ab92784a5349b6579d2f02439239b2da0",
+      "page_count": 10,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P021_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P022",
+      "source_file": "cx80 PROTECTOR METAL 30.01.2019 rew.. 2.0.pdf",
+      "sha256": "c48165dc424e4c21455447e521be66ce16f69ca83e12bba228df682639c9258a",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P022_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P023",
+      "source_file": "CX80 PŁYN KONSERWUJĄCO NAPRAWCZY 01.01.2023 rew. 1.0.pdf",
+      "sha256": "eb28cb6bed627c4ac245b99af3d3b9c3501c96dd5cf889049005c2f62f68e593",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P023_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P024",
+      "source_file": "cx80 SILIKON PROFESSIONAL 24.01.20123 rew. 2.0.pdf",
+      "sha256": "87817f5974723d61ee99ce20c18884c83005ec7479a137320c5835534dc412fa",
+      "page_count": 7,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P024_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P025",
+      "source_file": "cx80 SMAR SILIKONOWY 26.04.2021 rew. 1.0.pdf",
+      "sha256": "6d517c2a8a69b9af78ebc1f624cf3023754ce0112a52c53487cb0d6d31b8ba88",
+      "page_count": 7,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P025_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P026",
+      "source_file": "CX80 SUCHY SMAR TEFLON_karta charakterystyki.pdf",
+      "sha256": "87e88d63777ff61389d07f615075cd3f57dac029584f5f6567fb204fb8ec55b0",
+      "page_count": 10,
+      "readability": "PARTIALLY_READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P026_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P027",
+      "source_file": "cx80 TIRE PROTECTOR 30.01.2019 rew. 2.0.pdf",
+      "sha256": "31c2353cdedf9e182f2fe995d2dc4395e97ef4db1005d80e04df20cb9eddcace",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P027_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P028",
+      "source_file": "Cx80 XBRAKE CLEANER rew03 15.01.2025.pdf",
+      "sha256": "d4be1dde7758e20ea442df5f9905f3d5de61f2f054fc464448ec213a3d66dc20",
+      "page_count": 11,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P028_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P029",
+      "source_file": "CX80_ Uszczelniacz niebieski A_rew01_06082025.pdf",
+      "sha256": "ca6161b95b30e54e2cc35882c76db64a747a0890d20ecbf007ff0f615144c003",
+      "page_count": 8,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P029_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P030",
+      "source_file": "CX80_ Uszczelniacz niebieski B_rew01_15052025.pdf",
+      "sha256": "2b212f262aba22cc4a850cef9cfa23166a45f158bad8bf9e3744155d27ef7dfb",
+      "page_count": 7,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P030_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P031",
+      "source_file": "cx80_KCH SILV WELD (23.01.2023) rew. 2.pdf",
+      "sha256": "7b144cda7552d0652f718a52c1fb9245ceedda417f3cad7b26c046b484aa1307",
+      "page_count": 9,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P031_DOC-001.json",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B001-P032",
+      "source_file": "KT CX RC72-1 (1).pdf",
+      "sha256": "d925f907a1cb35735c06e8a89fdb5c877546a9811ab6d3601d1a4c79759d72ad",
+      "page_count": 1,
+      "readability": "READABLE",
+      "sds_start_pages": [],
+      "logical_sds_count": 0,
+      "json": null,
+      "status": "FAILED",
+      "reason": "PDF jest czytelną kartą techniczną RC 72, nie kartą SDS."
+    },
+    {
+      "id": "B001-P033",
+      "source_file": "KT CX RC72-1 (2).pdf",
+      "sha256": "b619b27472cc8a6fa9b8df8996cd5ecb79ff718f3e63ba47e23d6ee13a318d20",
+      "page_count": 1,
+      "readability": "READABLE",
+      "sds_start_pages": [],
+      "logical_sds_count": 0,
+      "json": null,
+      "status": "FAILED",
+      "reason": "PDF jest czytelną kartą techniczną RC 72, nie kartą SDS."
+    },
+    {
+      "id": "B001-P034",
+      "source_file": "ON RUST 30.01.2019 rew. 2.0.pdf",
+      "sha256": "7390e10fc944f544dfe8d2f4405584644674293498261fdfb33f0e5a627546fa",
+      "page_count": 10,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P034_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P035",
+      "source_file": "RC20G 30.01.2019 rew. 2.0.pdf",
+      "sha256": "ccf6d8ed116d74b33054cf8082565109d4ce8b8fc668395811253ba2755804c3",
+      "page_count": 10,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P035_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P036",
+      "source_file": "RC43 30.01.2019 rew. 2.0.pdf",
+      "sha256": "a42fef00da3a6b3046999423e54e25147169cbb9970b7f7464f02f5a68e390fb",
+      "page_count": 11,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P036_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    },
+    {
+      "id": "B001-P037",
+      "source_file": "XBRAKE CLEANER 30.01.2019 rew. 3.0.pdf",
+      "sha256": "9a55d855164ba2a0fd222473cd44831ac8acc1ede75c3002b10cfa3825b94556",
+      "page_count": 10,
+      "readability": "READABLE",
+      "sds_start_pages": [
+        1
+      ],
+      "logical_sds_count": 1,
+      "json": "B001-P037_DOC-001.json",
+      "status": "NEEDS_REVIEW"
+    }
+  ]
+}

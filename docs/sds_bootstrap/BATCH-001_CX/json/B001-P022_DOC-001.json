@@ -1,0 +1,103 @@
+{
+  "schema": "SDS-JSON-001",
+  "schema_version": "0.1",
+  "source": {
+    "original_filename": "cx80 PROTECTOR METAL 30.01.2019 rew.. 2.0.pdf",
+    "file_sha256": "c48165dc424e4c21455447e521be66ce16f69ca83e12bba228df682639c9258a",
+    "page_count": 9,
+    "language": "pl",
+    "readability_status": "READABLE"
+  },
+  "documents": [
+    {
+      "document_key": "DOC-001",
+      "page_range": {
+        "from": 1,
+        "to": 9
+      },
+      "review_status": "PENDING_REVIEW",
+      "product": {
+        "product_name": {
+          "value": "PROTECTOR METAL",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": "1",
+              "subsection": "1.1",
+              "label": "Identyfikator produktu",
+              "source_text": "1.1. Identyfikator produktu PROTECTOR METAL"
+            }
+          ]
+        },
+        "manufacturer_product_code": {
+          "value": null,
+          "state": "NOT_FOUND",
+          "evidence": []
+        }
+      },
+      "document_metadata": {
+        "issue_date": {
+          "value": "2023-01-23",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Data aktualizacji (nagłówek)",
+              "source_text": "Data aktualizacji 23.01.2023 Numer wersji 2.0"
+            }
+          ]
+        },
+        "revision": {
+          "value": "2.0",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Numer wersji (nagłówek)",
+              "source_text": "Data aktualizacji 23.01.2023 Numer wersji 2.0"
+            }
+          ]
+        }
+      },
+      "parties": [
+        {
+          "role": "MANUFACTURER",
+          "name": {
+            "value": "CX80 POLSKA AGATA NADERA DARIUSZ NADERA SPÓŁKA KOMANDYTOWA",
+            "state": "FOUND",
+            "evidence": [
+              {
+                "page": 1,
+                "section": "1",
+                "subsection": "1.3",
+                "label": "Producent",
+                "source_text": "Producent\nNazwa lub nazwa handlowa CX80 POLSKA AGATA NADERA\nDARIUSZ NADERA SPÓŁKA\nKOMANDYTOWA"
+              }
+            ]
+          }
+        }
+      ],
+      "safety_profile": {},
+      "components": [],
+      "validation": {
+        "status": "REQUIRES_HUMAN_REVIEW",
+        "issues": [
+          {
+            "code": "FILENAME_DATE_CONFLICT",
+            "message": "Data 2019 w nazwie pliku różni się od daty aktualizacji 2023 w SDS."
+          }
+        ]
+      }
+    }
+  ],
+  "extraction_report": {
+    "logical_sds_count": 1,
+    "warnings": [],
+    "errors": []
+  }
+}

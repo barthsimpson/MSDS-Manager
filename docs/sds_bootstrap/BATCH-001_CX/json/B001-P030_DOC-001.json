@@ -1,0 +1,98 @@
+{
+  "schema": "SDS-JSON-001",
+  "schema_version": "0.1",
+  "source": {
+    "original_filename": "CX80_ Uszczelniacz niebieski B_rew01_15052025.pdf",
+    "file_sha256": "2b212f262aba22cc4a850cef9cfa23166a45f158bad8bf9e3744155d27ef7dfb",
+    "page_count": 7,
+    "language": "pl",
+    "readability_status": "READABLE"
+  },
+  "documents": [
+    {
+      "document_key": "DOC-001",
+      "page_range": {
+        "from": 1,
+        "to": 7
+      },
+      "review_status": "PENDING_REVIEW",
+      "product": {
+        "product_name": {
+          "value": "Uszczelniacz niebieski B",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": "1",
+              "subsection": "1.1",
+              "label": "Identyfikator produktu",
+              "source_text": "1.1. Identyfikator produktu Uszczelniacz niebieski B"
+            }
+          ]
+        },
+        "manufacturer_product_code": {
+          "value": null,
+          "state": "NOT_FOUND",
+          "evidence": []
+        }
+      },
+      "document_metadata": {
+        "issue_date": {
+          "value": "2025-05-15",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Data aktualizacji (nagłówek)",
+              "source_text": "Data aktualizacji 15.05.2025"
+            }
+          ]
+        },
+        "revision": {
+          "value": "1.0",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Numer wersji (nagłówek)",
+              "source_text": "Data utworzenia 16.04.2025 Numer wersji 1.0"
+            }
+          ]
+        }
+      },
+      "parties": [
+        {
+          "role": "MANUFACTURER",
+          "name": {
+            "value": "CX80 POLSKA",
+            "state": "FOUND",
+            "evidence": [
+              {
+                "page": 1,
+                "section": "1",
+                "subsection": "1.3",
+                "label": "Producent",
+                "source_text": "Producent\nNazwa lub nazwa handlowa CX80 POLSKA, CX80 GmbH"
+              }
+            ]
+          }
+        }
+      ],
+      "safety_profile": {},
+      "components": [],
+      "validation": {
+        "status": "READY_FOR_HUMAN_REVIEW",
+        "issues": []
+      }
+    }
+  ],
+  "extraction_report": {
+    "logical_sds_count": 1,
+    "warnings": [],
+    "errors": []
+  }
+}

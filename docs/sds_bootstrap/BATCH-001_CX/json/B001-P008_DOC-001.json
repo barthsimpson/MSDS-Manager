@@ -1,0 +1,103 @@
+{
+  "schema": "SDS-JSON-001",
+  "schema_version": "0.1",
+  "source": {
+    "original_filename": "CLEANER PROF 30.01.2019 rew. 2.0.pdf",
+    "file_sha256": "d0cd7e31cd45940a50b8a43f0501ea22546383a4646fa2073783a3b4e0dfefa0",
+    "page_count": 11,
+    "language": "pl",
+    "readability_status": "PARTIALLY_READABLE"
+  },
+  "documents": [
+    {
+      "document_key": "DOC-001",
+      "page_range": {
+        "from": 1,
+        "to": 11
+      },
+      "review_status": "PENDING_REVIEW",
+      "product": {
+        "product_name": {
+          "value": "CX80 CLEANER PROF",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": "1",
+              "subsection": "1.1",
+              "label": "Identyfikator produktu",
+              "source_text": "1.1 Identyfikator produktu\nCX80 CLEANER PROF"
+            }
+          ]
+        },
+        "manufacturer_product_code": {
+          "value": null,
+          "state": "NOT_FOUND",
+          "evidence": []
+        }
+      },
+      "document_metadata": {
+        "issue_date": {
+          "value": "2019-01-30",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Data aktualizacji (nagłówek)",
+              "source_text": "1/11 Data aktualizacji: 30.01.2019 r. Wersja 2.0 /PL"
+            }
+          ]
+        },
+        "revision": {
+          "value": "2.0",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Wersja (nagłówek)",
+              "source_text": "1/11 Data aktualizacji: 30.01.2019 r. Wersja 2.0 /PL"
+            }
+          ]
+        }
+      },
+      "parties": [
+        {
+          "role": "MANUFACTURER",
+          "name": {
+            "value": "CX80 Polska",
+            "state": "FOUND",
+            "evidence": [
+              {
+                "page": 1,
+                "section": "1",
+                "subsection": "1.3",
+                "label": "producent",
+                "source_text": "producent: CX80 Polska"
+              }
+            ]
+          }
+        }
+      ],
+      "safety_profile": {},
+      "components": [],
+      "validation": {
+        "status": "REQUIRES_HUMAN_REVIEW",
+        "issues": [
+          {
+            "code": "PARTIAL_TEXT_READABILITY",
+            "message": "Warstwa tekstowa ma rozdzielone znaki w części polskich słów."
+          }
+        ]
+      }
+    }
+  ],
+  "extraction_report": {
+    "logical_sds_count": 1,
+    "warnings": [],
+    "errors": []
+  }
+}

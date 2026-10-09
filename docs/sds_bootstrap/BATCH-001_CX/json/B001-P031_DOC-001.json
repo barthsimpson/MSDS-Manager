@@ -1,0 +1,98 @@
+{
+  "schema": "SDS-JSON-001",
+  "schema_version": "0.1",
+  "source": {
+    "original_filename": "cx80_KCH SILV WELD (23.01.2023) rew. 2.pdf",
+    "file_sha256": "7b144cda7552d0652f718a52c1fb9245ceedda417f3cad7b26c046b484aa1307",
+    "page_count": 9,
+    "language": "pl",
+    "readability_status": "READABLE"
+  },
+  "documents": [
+    {
+      "document_key": "DOC-001",
+      "page_range": {
+        "from": 1,
+        "to": 9
+      },
+      "review_status": "PENDING_REVIEW",
+      "product": {
+        "product_name": {
+          "value": "SILV WELD",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": "1",
+              "subsection": "1.1",
+              "label": "Identyfikator produktu",
+              "source_text": "1.1. Identyfikator produktu SILV WELD"
+            }
+          ]
+        },
+        "manufacturer_product_code": {
+          "value": null,
+          "state": "NOT_FOUND",
+          "evidence": []
+        }
+      },
+      "document_metadata": {
+        "issue_date": {
+          "value": "2023-01-23",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Data aktualizacji (nagłówek)",
+              "source_text": "Data aktualizacji 23.01.2023 Numer wersji 2.0"
+            }
+          ]
+        },
+        "revision": {
+          "value": "2.0",
+          "state": "FOUND",
+          "evidence": [
+            {
+              "page": 1,
+              "section": null,
+              "subsection": null,
+              "label": "Numer wersji (nagłówek)",
+              "source_text": "Data aktualizacji 23.01.2023 Numer wersji 2.0"
+            }
+          ]
+        }
+      },
+      "parties": [
+        {
+          "role": "MANUFACTURER",
+          "name": {
+            "value": "CX80 POLSKA AGATA NADERA DARIUSZ NADERA SPÓŁKA KOMANDYTOWA (CX 80 POLSKA AGATA NADERA DARIUSZ NADERA SPÓŁKA JAWNA, CX-80 POLSKA AGATA NADERA, DARIUSZ NADERA SPÓŁKA KOMANDYTOWA)",
+            "state": "FOUND",
+            "evidence": [
+              {
+                "page": 1,
+                "section": "1",
+                "subsection": "1.3",
+                "label": "Producent",
+                "source_text": "Producent\nNazwa lub nazwa handlowa CX80 POLSKA AGATA NADERA DARIUSZ NADERA SPÓŁKA\nKOMANDYTOWA (CX 80 POLSKA AGATA NADERA\nDARIUSZ NADERA SPÓŁKA JAWNA, CX-80 POLSKA AGATA\nNADERA, DARIUSZ NADERA SPÓŁKA KOMANDYTOWA)"
+              }
+            ]
+          }
+        }
+      ],
+      "safety_profile": {},
+      "components": [],
+      "validation": {
+        "status": "READY_FOR_HUMAN_REVIEW",
+        "issues": []
+      }
+    }
+  ],
+  "extraction_report": {
+    "logical_sds_count": 1,
+    "warnings": [],
+    "errors": []
+  }
+}
