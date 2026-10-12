@@ -9,14 +9,16 @@ from app.application.dto import (
     ProductListItem,
     ProductUsageLocationDetails,
     UpdateProductAdministrativeDataInput,
-    UpdateProductIdentityInput,
+    CorrectProductIdentityInput,
 )
 from app.application.ports import ProductRepositoryPort
+from app.domain.models import ProductIdentityChange
 from app.infrastructure.db.models import (
     BhpDecisionModel,
     DecisionEvidenceModel,
     ManufacturerModel,
     ProductHistoryModel,
+    ProductIdentityChangeModel,
     ProductModel,
     ProductUsageLocationHistoryModel,
     ProductUsageLocationModel,
@@ -145,10 +147,64 @@ class SqlAlchemyProductRepository(ProductRepositoryPort):
         )
         return updated_id is not None
 
-    def update_identity(self, data: UpdateProductIdentityInput) -> bool:
-        product = self._session.get(ProductModel, data.product_id)
+    def _record_identity_change(
+        self, product: ProductModel, *, kind: str,
+        old_name: str, old_code: str | None, old_manufacturer_id: str,
+    ) -> None:
+        change = ProductIdentityChange(
+            product_id=product.product_id,
+            change_kind=kind,
+            old_product_name=old_name,
+            new_product_name=product.product_name,
+            old_manufacturer_product_code=old_code,
+            new_manufacturer_product_code=product.manufacturer_product_code,
+            old_manufacturer_id=old_manufacturer_id,
+            new_manufacturer_id=product.manufacturer_id,
+        )
+        self._session.add(ProductIdentityChangeModel(
+            change_id=change.change_id,
+            product_id=change.product_id,
+            change_kind=change.change_kind,
+            old_product_name=change.old_product_name,
+            new_product_name=change.new_product_name,
+            old_manufacturer_product_code=change.old_manufacturer_product_code,
+            new_manufacturer_product_code=change.new_manufacturer_product_code,
+            old_manufacturer_id=change.old_manufacturer_id,
+            new_manufacturer_id=change.new_manufacturer_id,
+            changed_at=change.changed_at,
+        ))
+        self._session.flush()
+
+    def complete_manufacturer_product_code(self, product_id: str, code: str) -> bool:
+        if not isinstance(code, str) or not code.strip():
+            raise ValueError("Kod producenta jest wymagany.")
+        product = self._session.scalar(
+            select(ProductModel).where(ProductModel.product_id == product_id).with_for_update()
+        )
         if product is None:
             return False
+        if product.manufacturer_product_code is not None:
+            raise ValueError("Kod producenta jest już znany; uzupełnienie jest niedozwolone.")
+        product.manufacturer_product_code = code.strip()
+        self._record_identity_change(
+            product, kind="CODE_COMPLETION", old_name=product.product_name,
+            old_code=None, old_manufacturer_id=product.manufacturer_id,
+        )
+        return True
+
+    def correct_identity(self, data: CorrectProductIdentityInput) -> bool:
+        product = self._session.scalar(
+            select(ProductModel).where(ProductModel.product_id == data.product_id).with_for_update()
+        )
+        if product is None:
+            return False
+
+        if product.manufacturer_product_code is None and data.manufacturer_product_code is not None:
+            raise ValueError("Brakujący kod należy uzupełnić osobną operacją.")
+
+        old_name = product.product_name
+        old_code = product.manufacturer_product_code
+        old_manufacturer_id = product.manufacturer_id
 
         manufacturers = self._session.scalars(
             select(ManufacturerModel).where(
@@ -165,10 +221,18 @@ class SqlAlchemyProductRepository(ProductRepositoryPort):
             self._session.add(manufacturer)
             self._session.flush()
 
+        if (old_name, old_code, old_manufacturer_id) == (
+            data.product_name, data.manufacturer_product_code, manufacturer.manufacturer_id,
+        ):
+            raise ValueError("Brak zmiany danych identyfikacyjnych.")
+
         product.product_name = data.product_name
         product.manufacturer_product_code = data.manufacturer_product_code
         product.manufacturer_id = manufacturer.manufacturer_id
-        self._session.flush()
+        self._record_identity_change(
+            product, kind="CORRECTION", old_name=old_name, old_code=old_code,
+            old_manufacturer_id=old_manufacturer_id,
+        )
         return True
 
     def delete_product(self, product_id: str) -> bool:
@@ -217,6 +281,9 @@ class SqlAlchemyProductRepository(ProductRepositoryPort):
         )
         self._session.execute(
             delete(ProductHistoryModel).where(ProductHistoryModel.product_id == product_id)
+        )
+        self._session.execute(
+            delete(ProductIdentityChangeModel).where(ProductIdentityChangeModel.product_id == product_id)
         )
         self._session.delete(product)
         self._session.flush()

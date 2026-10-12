@@ -3,9 +3,12 @@ from decimal import Decimal
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from sqlalchemy import select
+from sqlalchemy.engine import make_url
 
-from app.application.dto import UpdateProductIdentityInput
-from app.application.use_cases import UpdateProductIdentity
+import pytest
+
+from app.application.dto import CorrectProductIdentityInput
+from app.application.use_cases import CorrectProductIdentity
 from app.domain.enums import (
     BhpDecisionStatus,
     DecisionRecordStatus,
@@ -21,6 +24,7 @@ from app.infrastructure.db.models import (
     DecisionEvidenceModel,
     ManufacturerModel,
     ProductModel,
+    ProductIdentityChangeModel,
     ProductUsageLocationModel,
     SdsDocumentModel,
     UsageLocationModel,
@@ -31,6 +35,8 @@ from app.infrastructure.config import load_settings
 
 
 def test_product_identity_edit_preserves_sds_bhp_and_usage() -> None:
+    if not make_url(load_settings().database_url).database.startswith("task051_"):
+        pytest.skip("PATCH-007 regression requires an isolated task051_ PostgreSQL database")
     engine = create_engine_from_settings(load_settings())
     session_factory = create_session_factory(engine)
     suffix = uuid4().hex
@@ -76,6 +82,7 @@ def test_product_identity_edit_preserves_sds_bhp_and_usage() -> None:
                     ),
                     UsageLocationModel(
                         location_id=location_id,
+                        location_code=f"P{suffix[:20].upper()}",
                         location_name="PATCH-007 Location",
                         status=UsageLocationStatus.ACTIVE,
                     ),
@@ -108,8 +115,8 @@ def test_product_identity_edit_preserves_sds_bhp_and_usage() -> None:
             )
             session.flush()
 
-            UpdateProductIdentity(SqlAlchemyProductRepository(session)).execute(
-                UpdateProductIdentityInput(
+            CorrectProductIdentity(SqlAlchemyProductRepository(session)).execute(
+                CorrectProductIdentityInput(
                     product_id=product_id,
                     product_name="Edited product",
                     manufacturer_product_code="NEW-1",
@@ -124,6 +131,21 @@ def test_product_identity_edit_preserves_sds_bhp_and_usage() -> None:
             assert product.product_name == "Edited product"
             assert product.manufacturer_product_code == "NEW-1"
             assert product.manufacturer_id == new_manufacturer_id
+            [change] = session.scalars(
+                select(ProductIdentityChangeModel).where(
+                    ProductIdentityChangeModel.product_id == product_id
+                )
+            ).all()
+            assert change.change_kind == "CORRECTION"
+            assert (change.old_product_name, change.new_product_name) == (
+                "Old product", "Edited product"
+            )
+            assert (change.old_manufacturer_product_code, change.new_manufacturer_product_code) == (
+                "OLD-1", "NEW-1"
+            )
+            assert (change.old_manufacturer_id, change.new_manufacturer_id) == (
+                old_manufacturer_id, new_manufacturer_id
+            )
             assert product.usage_status is ProductUsageStatus.ACTIVE
             assert session.scalars(
                 select(SdsDocumentModel).where(SdsDocumentModel.product_id == product_id)

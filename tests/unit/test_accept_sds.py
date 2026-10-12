@@ -107,6 +107,17 @@ def test_accept_sds_skips_incomplete_component_before_repository() -> None:
 
     assert result == "sds-id"
     assert repository.received is not None
+
+
+@pytest.mark.parametrize("code", [None, "", "   "])
+def test_accept_sds_passes_missing_manufacturer_code_as_none(code: str | None) -> None:
+    data = valid_input()
+    data.manufacturer_product_code = code
+    repository = FakeRepository()
+
+    AcceptSds(repository, FakeValidator()).execute(data)
+
+    assert repository.received.manufacturer_product_code is None
     assert [component.component_name for component in repository.received.components] == [
         "Component"
     ]

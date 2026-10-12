@@ -14,7 +14,7 @@ class SupervisoryProductRow:
     product_id: str
     product_name: str
     manufacturer_name: str
-    manufacturer_product_code: str
+    manufacturer_product_code: str | None
     usage_status: ProductUsageStatus
     use_description: str
     use_restriction: str

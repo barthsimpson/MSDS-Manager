@@ -15,7 +15,8 @@ from .list_supervisory_products import ListSupervisoryProducts
 from .get_analytics_dashboard import GetAnalyticsDashboard
 from .list_analytics_product_locations import ListAnalyticsProductLocations
 from .update_product_administrative_data import UpdateProductAdministrativeData
-from .update_product_identity import UpdateProductIdentity
+from .correct_product_identity import CorrectProductIdentity
+from .complete_manufacturer_product_code import CompleteManufacturerProductCode
 from .delete_product import DeleteProduct
 from .update_product_usage_location import UpdateProductUsageLocation
 from .prepare_sds_draft import PrepareSdsDraft
@@ -37,7 +38,8 @@ __all__ = [
     "ListUsageLocations",
     "ReactivateUsageLocation",
     "UpdateProductAdministrativeData",
-    "UpdateProductIdentity",
+    "CorrectProductIdentity",
+    "CompleteManufacturerProductCode",
     "DeleteProduct",
     "UpdateProductUsageLocation",
     "PrepareSdsDraft",

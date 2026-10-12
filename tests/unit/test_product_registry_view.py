@@ -152,7 +152,7 @@ def test_product_registry_uses_product_id_and_renders_all_location_values(
     ]
     assert any(item.value == "Producent: Manufacturer B" for item in app.text)
     assert any(item.value == "Status użytkowania: Aktywny" for item in app.text)
-    assert {"Edytuj dane produktu", "Dodaj nową rewizję SDS", "Usuń produkt"}.issubset(
+    assert {"Korekta danych identyfikacyjnych", "Dodaj nową rewizję SDS", "Usuń produkt"}.issubset(
         {button.label for button in app.button}
     )
 
@@ -350,7 +350,7 @@ def test_revision_app_shows_upload_without_existing_sds_files() -> None:
     assert app.button(key="save-revision-existing-product")
 
 
-def test_identity_edit_action_passes_selected_product_id(
+def test_identity_correction_requires_confirmation_and_passes_selected_product_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class FakeStreamlit:
@@ -358,7 +358,7 @@ def test_identity_edit_action_passes_selected_product_id(
 
         @staticmethod
         def button(label: str, **_kwargs) -> bool:
-            return label in {"Edytuj dane produktu", "Zapisz zmiany"}
+            return label in {"Korekta danych identyfikacyjnych", "Zapisz korektę"}
 
         @staticmethod
         def subheader(_label: str) -> None:
@@ -371,6 +371,10 @@ def test_identity_edit_action_passes_selected_product_id(
                 "Kod produktu producenta": "EDITED-1",
                 "Producent": "Edited manufacturer",
             }[label]
+
+        @staticmethod
+        def checkbox(_label: str, **_kwargs) -> bool:
+            return True
 
         @staticmethod
         def columns(_count: int):
@@ -392,19 +396,96 @@ def test_identity_edit_action_passes_selected_product_id(
         def __init__(self) -> None:
             self.updated = None
 
-        def update_product_identity(self, data) -> None:
+        def correct_product_identity(self, data) -> None:
             self.updated = data
 
     composition = IdentityComposition()
     monkeypatch.setattr(product_registry, "st", FakeStreamlit())
 
-    product_registry._render_identity_edit(
+    product_registry._render_identity_correction(
         composition, make_details(make_product("existing-product", "Manufacturer"))
     )
 
     assert composition.updated is not None
     assert composition.updated.product_id == "existing-product"
     assert composition.updated.product_name == "Edited product"
+
+
+def test_identity_correction_without_confirmation_does_not_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeStreamlit:
+        session_state = {}
+
+        @staticmethod
+        def button(label: str, **_kwargs) -> bool:
+            return label in {"Korekta danych identyfikacyjnych", "Zapisz korektę"}
+
+        @staticmethod
+        def subheader(_label: str) -> None:
+            pass
+
+        @staticmethod
+        def text_input(_label: str, *_args, **_kwargs) -> str:
+            return "changed"
+
+        @staticmethod
+        def checkbox(_label: str, **_kwargs) -> bool:
+            return False
+
+        @staticmethod
+        def columns(_count: int):
+            return (FakeStreamlit(), FakeStreamlit())
+
+        @staticmethod
+        def error(message: str) -> None:
+            assert "Potwierdź" in message
+
+    class IdentityComposition:
+        def correct_product_identity(self, _data) -> None:
+            raise AssertionError("Correction was not confirmed")
+
+    monkeypatch.setattr(product_registry, "st", FakeStreamlit())
+    product_registry._render_identity_correction(
+        IdentityComposition(), make_details(make_product("existing-product", "Manufacturer"))
+    )
+
+
+def test_missing_code_has_separate_completion_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeStreamlit:
+        session_state = {}
+
+        @staticmethod
+        def button(label: str, **_kwargs) -> bool:
+            return label in {"Uzupełnij kod producenta", "Zapisz kod"}
+
+        @staticmethod
+        def text_input(_label: str, **_kwargs) -> str:
+            return "CODE-1"
+
+        @staticmethod
+        def columns(_count: int):
+            return (FakeStreamlit(), FakeStreamlit())
+
+        @staticmethod
+        def success(_message: str) -> None:
+            pass
+
+    class IdentityComposition:
+        completed = None
+
+        def complete_manufacturer_product_code(self, data) -> None:
+            self.completed = data
+
+    details = make_details(make_product("existing-product", "Manufacturer"))
+    object.__setattr__(details, "manufacturer_product_code", None)
+    composition = IdentityComposition()
+    monkeypatch.setattr(product_registry, "st", FakeStreamlit())
+    product_registry._render_code_completion(composition, details)
+    assert composition.completed.product_id == "existing-product"
+    assert composition.completed.manufacturer_product_code == "CODE-1"
 
 
 def test_delete_action_requires_explicit_confirmation(

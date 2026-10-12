@@ -24,6 +24,10 @@ class AcceptSds:
         self._validate(data)
         accepted_data = replace(
             data,
+            manufacturer_product_code=(
+                data.manufacturer_product_code.strip() or None
+                if isinstance(data.manufacturer_product_code, str) else None
+            ),
             components=[
                 component
                 for component in data.components
@@ -35,10 +39,11 @@ class AcceptSds:
 
     @staticmethod
     def _validate(data: AcceptSdsInput) -> None:
+        if data.manufacturer_product_code is not None and not isinstance(data.manufacturer_product_code, str):
+            raise SdsAcceptanceValidationError("Invalid manufacturer_product_code.")
         required = {
             "source_relative_path": data.source_relative_path,
             "product_name": data.product_name,
-            "manufacturer_product_code": data.manufacturer_product_code,
             "manufacturer_name": data.manufacturer_name,
             "use_description": data.use_description,
             "use_restriction": data.use_restriction,

@@ -10,7 +10,7 @@ from app.domain.enums import ProductUsageStatus, UsageLocationStatus
 class ProductListItem:
     product_id: str
     product_name: str
-    manufacturer_product_code: str
+    manufacturer_product_code: str | None
     manufacturer_id: str
     manufacturer_name: str
     usage_status: ProductUsageStatus
@@ -51,8 +51,14 @@ class UpdateProductAdministrativeDataInput:
 
 
 @dataclass(frozen=True, slots=True)
-class UpdateProductIdentityInput:
+class CorrectProductIdentityInput:
     product_id: str
     product_name: str
-    manufacturer_product_code: str
+    manufacturer_product_code: str | None
     manufacturer_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class CompleteManufacturerProductCodeInput:
+    product_id: str
+    manufacturer_product_code: str

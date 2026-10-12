@@ -34,6 +34,6 @@ class ListSupervisoryProducts:
                 row, requires_action=bool(reasons), action_reasons=tuple(reasons)
             ))
         return sorted(result, key=lambda row: (
-            row.product_name, row.manufacturer_product_code, row.product_id,
+            row.product_name, row.manufacturer_product_code or "", row.product_id,
             row.usage_location_name or "",
         ))

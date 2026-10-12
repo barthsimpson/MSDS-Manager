@@ -6,7 +6,7 @@ from app.application.dto import (
     ProductDetails,
     ProductListItem,
     UpdateProductAdministrativeDataInput,
-    UpdateProductIdentityInput,
+    CorrectProductIdentityInput,
 )
 
 
@@ -19,6 +19,8 @@ class ProductRepositoryPort(Protocol):
         self, data: UpdateProductAdministrativeDataInput
     ) -> bool: ...
 
-    def update_identity(self, data: UpdateProductIdentityInput) -> bool: ...
+    def complete_manufacturer_product_code(self, product_id: str, code: str) -> bool: ...
+
+    def correct_identity(self, data: CorrectProductIdentityInput) -> bool: ...
 
     def delete_product(self, product_id: str) -> bool: ...

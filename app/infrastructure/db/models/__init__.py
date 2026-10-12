@@ -4,6 +4,7 @@ from .base import Base
 from .catalog import (
     ManufacturerModel,
     ProductHistoryModel,
+    ProductIdentityChangeModel,
     ProductModel,
     ProductUsageLocationHistoryModel,
     ProductUsageLocationModel,
@@ -21,6 +22,7 @@ __all__ = [
     "DecisionEvidenceModel",
     "ManufacturerModel",
     "ProductHistoryModel",
+    "ProductIdentityChangeModel",
     "ProductModel",
     "PhysicalReviewItemModel",
     "PhysicalReviewModel",

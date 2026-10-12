@@ -15,7 +15,8 @@ from app.application.dto import (
     ProductUsageLocationDetails,
     SupervisoryProductRow,
     UpdateProductAdministrativeDataInput,
-    UpdateProductIdentityInput,
+    CompleteManufacturerProductCodeInput,
+    CorrectProductIdentityInput,
     UpdateProductUsageLocationInput,
 )
 from app.application.exceptions import SupervisoryReadError
@@ -68,7 +69,7 @@ def _bhp_label(row: SupervisoryProductRow | None) -> str:
 def _registry_row(product: ProductListItem, row: SupervisoryProductRow | None) -> dict[str, str]:
     return {
         "Produkt": product.product_name,
-        "Kod producenta": product.manufacturer_product_code,
+        "Kod producenta": _optional_text(product.manufacturer_product_code),
         "Producent": product.manufacturer_name,
         "Status": _status_label(product.usage_status),
         "SDS": _sds_label(row),
@@ -93,14 +94,14 @@ def _location_row(location: ProductUsageLocationDetails) -> dict[str, str]:
     }
 
 
-def _render_identity_edit(composition, details: ProductDetails) -> None:
-    active_key = f"identity-edit-active-{details.product_id}"
-    if st.button("Edytuj dane produktu", key=f"edit-product-{details.product_id}"):
+def _render_identity_correction(composition, details: ProductDetails) -> None:
+    active_key = f"identity-correction-active-{details.product_id}"
+    if st.button("Korekta danych identyfikacyjnych", key=f"correct-product-{details.product_id}"):
         st.session_state[active_key] = True
     if not st.session_state.get(active_key):
         return
 
-    st.subheader("Edycja danych produktu")
+    st.subheader("Korekta danych identyfikacyjnych")
     product_name = st.text_input(
         "Nazwa produktu",
         details.product_name,
@@ -108,19 +109,26 @@ def _render_identity_edit(composition, details: ProductDetails) -> None:
     )
     manufacturer_product_code = st.text_input(
         "Kod produktu producenta",
-        details.manufacturer_product_code,
-        key=f"edit-product-code-{details.product_id}",
+        details.manufacturer_product_code or "",
+        key=f"correct-product-code-{details.product_id}",
     )
     manufacturer_name = st.text_input(
         "Producent",
         details.manufacturer_name,
-        key=f"edit-manufacturer-{details.product_id}",
+        key=f"correct-manufacturer-{details.product_id}",
+    )
+    confirmed = st.checkbox(
+        "Potwierdzam, że poprawiam błędnie zarejestrowane dane, a nie rejestruję innego produktu.",
+        key=f"confirm-correction-{details.product_id}",
     )
     save, cancel = st.columns(2)
-    if save.button("Zapisz zmiany", key=f"save-product-{details.product_id}"):
+    if save.button("Zapisz korektę", key=f"save-correction-{details.product_id}"):
+        if not confirmed:
+            st.error("Potwierdź znaczenie korekty przed zapisem.")
+            return
         try:
-            composition.update_product_identity(
-                UpdateProductIdentityInput(
+            composition.correct_product_identity(
+                CorrectProductIdentityInput(
                     product_id=details.product_id,
                     product_name=product_name,
                     manufacturer_product_code=manufacturer_product_code,
@@ -128,10 +136,34 @@ def _render_identity_edit(composition, details: ProductDetails) -> None:
                 )
             )
             st.session_state.pop(active_key, None)
-            st.success("Dane produktu zapisane.")
+            st.success("Korekta danych identyfikacyjnych zapisana.")
         except (ShellInitializationError, ValueError) as error:
             st.error(str(error))
-    if cancel.button("Anuluj edycję", key=f"cancel-product-{details.product_id}"):
+    if cancel.button("Anuluj korektę", key=f"cancel-correction-{details.product_id}"):
+        st.session_state.pop(active_key, None)
+        st.rerun()
+
+
+def _render_code_completion(composition, details: ProductDetails) -> None:
+    if details.manufacturer_product_code is not None:
+        return
+    active_key = f"code-completion-active-{details.product_id}"
+    if st.button("Uzupełnij kod producenta", key=f"complete-code-{details.product_id}"):
+        st.session_state[active_key] = True
+    if not st.session_state.get(active_key):
+        return
+    code = st.text_input("Kod produktu producenta", key=f"new-code-{details.product_id}")
+    save, cancel = st.columns(2)
+    if save.button("Zapisz kod", key=f"save-code-{details.product_id}"):
+        try:
+            composition.complete_manufacturer_product_code(
+                CompleteManufacturerProductCodeInput(details.product_id, code)
+            )
+            st.session_state.pop(active_key, None)
+            st.success("Kod producenta uzupełniony.")
+        except (ShellInitializationError, ValueError) as error:
+            st.error(str(error))
+    if cancel.button("Anuluj", key=f"cancel-code-{details.product_id}"):
         st.session_state.pop(active_key, None)
         st.rerun()
 
@@ -175,7 +207,7 @@ def _render_details(
     st.subheader("Szczegóły produktu")
     st.markdown("#### Tożsamość")
     st.text(f"Nazwa produktu: {details.product_name}")
-    st.text(f"Kod producenta: {details.manufacturer_product_code}")
+    st.text(f"Kod producenta: {_optional_text(details.manufacturer_product_code)}")
     st.text(f"Producent: {details.manufacturer_name}")
     st.text(f"Status użytkowania: {_status_label(details.usage_status)}")
 
@@ -413,7 +445,7 @@ def _render_revision(
     st.subheader("Nowa rewizja SDS")
     st.text(f"Produkt: {details.product_name}")
     st.text(f"Producent: {details.manufacturer_name}")
-    st.text(f"Kod producenta: {details.manufacturer_product_code}")
+    st.text(f"Kod producenta: {_optional_text(details.manufacturer_product_code)}")
     if current_sds is not None and current_sds.current_sds_id is not None:
         st.text(
             f"Aktualny SDS: {current_sds.current_sds_filename or MISSING_VALUE}; "
@@ -502,7 +534,8 @@ def render_product_registry(composition: ShellComposition) -> None:
         return
     _render_details(composition, details, supervisory_rows.get(selected_product_id))
     st.subheader("Akcje produktu")
-    _render_identity_edit(composition, details)
+    _render_code_completion(composition, details)
+    _render_identity_correction(composition, details)
     _render_revision(composition, details, supervisory_rows.get(selected_product_id))
     st.divider()
     _render_delete_product(composition, details)

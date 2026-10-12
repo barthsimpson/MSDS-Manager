@@ -73,6 +73,17 @@ def test_application_assesses_facts_without_mutating_input(
     query.list_products.assert_called_once_with()
 
 
+def test_supervisory_sort_accepts_missing_manufacturer_code(complete_row) -> None:
+    query = Mock()
+    query.list_products.return_value = [
+        replace(complete_row, product_id="known", manufacturer_product_code="A"),
+        replace(complete_row, product_id="missing", manufacturer_product_code=None),
+    ]
+    assert [row.product_id for row in ListSupervisoryProducts(query).execute()] == [
+        "missing", "known"
+    ]
+
+
 def test_empty_list_and_stable_order(complete_row) -> None:
     query = Mock()
     query.list_products.return_value = []

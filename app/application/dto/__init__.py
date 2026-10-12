@@ -9,7 +9,8 @@ from .products import (
     ProductListItem,
     ProductUsageLocationDetails,
     UpdateProductAdministrativeDataInput,
-    UpdateProductIdentityInput,
+    CompleteManufacturerProductCodeInput,
+    CorrectProductIdentityInput,
 )
 from .supervisory import SupervisoryProductRow
 from .analytics import (
@@ -44,7 +45,8 @@ __all__ = [
     "ProductListItem",
     "ProductUsageLocationDetails",
     "UpdateProductAdministrativeDataInput",
-    "UpdateProductIdentityInput",
+    "CompleteManufacturerProductCodeInput",
+    "CorrectProductIdentityInput",
     "UpdateProductUsageLocationInput",
     "AcceptSdsInput",
     "AddSdsRevisionInput",

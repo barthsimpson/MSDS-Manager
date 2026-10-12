@@ -47,7 +47,7 @@ class Manufacturer:
 class Product:
     product_id: str
     product_name: str
-    manufacturer_product_code: str
+    manufacturer_product_code: str | None
     manufacturer_id: str
     use_description: str
     use_restriction: str
@@ -113,6 +113,32 @@ class ProductHistory:
     changed_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
+
+
+@dataclass(frozen=True, slots=True)
+class ProductIdentityChange:
+    product_id: str
+    change_kind: str
+    old_product_name: str
+    new_product_name: str
+    old_manufacturer_product_code: str | None
+    new_manufacturer_product_code: str | None
+    old_manufacturer_id: str
+    new_manufacturer_id: str
+    change_id: str = field(default_factory=lambda: uuid4().hex)
+    changed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def __post_init__(self) -> None:
+        if self.change_kind not in {"CODE_COMPLETION", "CORRECTION"}:
+            raise ValueError("Invalid product identity change kind.")
+        if self.change_kind == "CODE_COMPLETION" and (
+            self.old_manufacturer_product_code is not None
+            or not self.new_manufacturer_product_code
+            or not self.new_manufacturer_product_code.strip()
+            or self.old_product_name != self.new_product_name
+            or self.old_manufacturer_id != self.new_manufacturer_id
+        ):
+            raise ValueError("Code completion must only fill a missing code for the same product.")
 
 
 @dataclass(frozen=True, slots=True)

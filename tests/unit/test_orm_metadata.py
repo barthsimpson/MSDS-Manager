@@ -30,6 +30,7 @@ EXPECTED_TABLES = {
     "usage_locations",
     "product_usage_locations",
     "product_history",
+    "product_identity_changes",
     "usage_location_history",
     "product_usage_location_history",
     "unit_of_measure",
@@ -61,6 +62,7 @@ def test_every_table_has_the_expected_primary_key() -> None:
         "usage_locations": {"location_id"},
         "product_usage_locations": {"product_id", "location_id"},
         "product_history": {"history_id"},
+        "product_identity_changes": {"change_id"},
         "usage_location_history": {"history_id"},
         "product_usage_location_history": {"history_id"},
         "unit_of_measure": {"unit_id"},
@@ -94,6 +96,7 @@ def test_foreign_keys_match_core_relations() -> None:
         "unit_of_measure.unit_id",
     }
     assert foreign_key_targets("product_history") == {"products.product_id"}
+    assert foreign_key_targets("product_identity_changes") == {"products.product_id"}
     assert foreign_key_targets("usage_location_history") == {"usage_locations.location_id"}
     assert foreign_key_targets("product_usage_location_history") == {
         "products.product_id",
@@ -179,6 +182,23 @@ def test_product_waste_fields_are_optional() -> None:
     assert table.c.waste_code.nullable
 
 
+def test_product_identity_change_mapping_has_approved_constraints() -> None:
+    table = Base.metadata.tables["product_identity_changes"]
+    assert set(table.columns.keys()) == {
+        "change_id", "product_id", "change_kind", "old_product_name",
+        "new_product_name", "old_manufacturer_product_code",
+        "new_manufacturer_product_code", "old_manufacturer_id",
+        "new_manufacturer_id", "changed_at",
+    }
+    assert {constraint.name for constraint in table.constraints if isinstance(constraint, CheckConstraint)} == {
+        "ck_product_identity_changes_change_kind"
+    }
+    assert not table.c.changed_at.nullable
+    assert table.c.old_manufacturer_product_code.nullable
+    assert table.c.new_manufacturer_product_code.nullable
+    assert not Base.metadata.tables["products"].indexes
+
+
 def test_safety_profile_is_one_to_one_with_sds() -> None:
     table = Base.metadata.tables["safety_profiles"]
 
@@ -233,7 +253,10 @@ def test_enum_columns_contain_only_approved_values() -> None:
 
 def test_optional_columns_are_nullable() -> None:
     optional_columns = {
-        "products": {"waste_type", "waste_code"},
+        "products": {"manufacturer_product_code", "waste_type", "waste_code"},
+        "product_identity_changes": {
+            "old_manufacturer_product_code", "new_manufacturer_product_code"
+        },
         "sds_documents": {"issue_date", "revision"},
         "bhp_decisions": {"notes"},
         "safety_profiles": {
@@ -260,7 +283,6 @@ def test_required_business_columns_are_not_nullable() -> None:
     required_columns = {
         "products": {
             "product_name",
-            "manufacturer_product_code",
             "manufacturer_id",
             "use_description",
             "use_restriction",
@@ -281,6 +303,10 @@ def test_required_business_columns_are_not_nullable() -> None:
             "registered_at",
             "record_status",
             "evidence_id",
+        },
+        "product_identity_changes": {
+            "product_id", "change_kind", "old_product_name", "new_product_name",
+            "old_manufacturer_id", "new_manufacturer_id", "changed_at",
         },
     }
 

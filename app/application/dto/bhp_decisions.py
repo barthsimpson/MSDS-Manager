@@ -31,7 +31,7 @@ class RegisterBhpDecisionResult:
 class BhpDecisionProduct:
     product_id: str
     product_name: str
-    manufacturer_product_code: str
+    manufacturer_product_code: str | None
     manufacturer_name: str
     usage_status: ProductUsageStatus
     sds_id: str

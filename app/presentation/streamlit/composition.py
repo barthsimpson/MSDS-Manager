@@ -18,7 +18,8 @@ from app.application.dto import (
     ProductDetails,
     ProductListItem,
     UpdateProductAdministrativeDataInput,
-    UpdateProductIdentityInput,
+    CompleteManufacturerProductCodeInput,
+    CorrectProductIdentityInput,
     UpdateProductUsageLocationInput,
     BhpDecisionProduct,
     BhpDecisionHistoryItem,
@@ -55,7 +56,8 @@ from app.application.use_cases import (
     ListUsageLocations,
     ReactivateUsageLocation,
     UpdateProductAdministrativeData,
-    UpdateProductIdentity,
+    CompleteManufacturerProductCode,
+    CorrectProductIdentity,
     DeleteProduct,
     UpdateProductUsageLocation,
     AcceptSds,
@@ -366,11 +368,20 @@ class ShellComposition:
             ).execute(data)
         )
 
-    def update_product_identity(self, data: UpdateProductIdentityInput) -> None:
+    def complete_manufacturer_product_code(self, data: CompleteManufacturerProductCodeInput) -> None:
         self._execute_write(
-            lambda session: UpdateProductIdentity(
+            lambda session: CompleteManufacturerProductCode(
                 SqlAlchemyProductRepository(session)
-            ).execute(data)
+            ).execute(data),
+            propagate_value_error=True,
+        )
+
+    def correct_product_identity(self, data: CorrectProductIdentityInput) -> None:
+        self._execute_write(
+            lambda session: CorrectProductIdentity(
+                SqlAlchemyProductRepository(session)
+            ).execute(data),
+            propagate_value_error=True,
         )
 
     def delete_product(self, product_id: str) -> None:

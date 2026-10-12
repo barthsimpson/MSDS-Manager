@@ -28,7 +28,7 @@ class ProductModel(Base):
 
     product_id: Mapped[str] = mapped_column(String, primary_key=True)
     product_name: Mapped[str] = mapped_column(String, nullable=False)
-    manufacturer_product_code: Mapped[str] = mapped_column(String, nullable=False)
+    manufacturer_product_code: Mapped[str | None] = mapped_column(String, nullable=True)
     manufacturer_id: Mapped[str] = mapped_column(
         ForeignKey("manufacturers.manufacturer_id"), nullable=False
     )
@@ -164,6 +164,27 @@ class ProductHistoryModel(Base):
     waste_type: Mapped[str | None] = mapped_column(String, nullable=True)
     waste_code: Mapped[str | None] = mapped_column(String, nullable=True)
     changed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class ProductIdentityChangeModel(Base):
+    __tablename__ = "product_identity_changes"
+    __table_args__ = (
+        CheckConstraint(
+            "change_kind IN ('CODE_COMPLETION', 'CORRECTION')",
+            name="ck_product_identity_changes_change_kind",
+        ),
+    )
+
+    change_id: Mapped[str] = mapped_column(String, primary_key=True)
+    product_id: Mapped[str] = mapped_column(ForeignKey("products.product_id"), nullable=False)
+    change_kind: Mapped[str] = mapped_column(String, nullable=False)
+    old_product_name: Mapped[str] = mapped_column(String, nullable=False)
+    new_product_name: Mapped[str] = mapped_column(String, nullable=False)
+    old_manufacturer_product_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    new_manufacturer_product_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    old_manufacturer_id: Mapped[str] = mapped_column(String, nullable=False)
+    new_manufacturer_id: Mapped[str] = mapped_column(String, nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class UsageLocationHistoryModel(Base):
