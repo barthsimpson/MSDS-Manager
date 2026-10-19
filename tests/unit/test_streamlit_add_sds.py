@@ -62,9 +62,10 @@ def test_add_sds_reads_and_accepts_manual_correction() -> None:
         "Dane bezpieczeństwa — opcjonalne", "Składniki — opcjonalne"
     }
     assert {item.label for item in app.text_input if item.label.endswith("*")} == {
-        "Nazwa produktu *", "Kod producenta *", "Producent *",
+        "Nazwa produktu *", "Producent *",
         "Opis zastosowania *", "Ograniczenia zastosowania *",
     }
+    assert app.text_input(key="sds-product-code").label == "Kod producenta — opcjonalne"
     assert any(item.value == "* pole wymagane" for item in app.caption)
 
     app.text_input(key="sds-product-name").set_value("Corrected product")

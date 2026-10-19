@@ -1,6 +1,7 @@
 import importlib
 
 import pytest
+from streamlit.testing.v1 import AppTest
 
 from app.infrastructure.config import ConfigurationError
 from app.presentation.streamlit.composition import (
@@ -53,3 +54,24 @@ def test_configuration_error_is_controlled_and_does_not_expose_secret() -> None:
     assert str(error_info.value) == INITIALIZATION_ERROR_MESSAGE
     assert "super-secret" not in str(error_info.value)
     assert secret not in str(error_info.value)
+
+
+def test_sidebar_icons_keep_section_values_selectable() -> None:
+    from app.presentation.streamlit.main import SECTIONS, SECTION_ICONS, _section_label
+
+    def render() -> None:
+        import streamlit as st
+        from app.presentation.streamlit.main import SECTIONS, _section_label
+
+        st.sidebar.radio("Sekcja", SECTIONS, format_func=_section_label)
+
+    app = AppTest.from_function(render).run()
+    assert app.exception == []
+    assert app.sidebar.radio[0].value == "Produkty"
+    assert all(_section_label(section).endswith(section) for section in SECTIONS)
+    assert all(SECTION_ICONS[section].startswith(":material/") for section in SECTIONS)
+
+    for section in SECTIONS[1:]:
+        app.sidebar.radio[0].set_value(section).run()
+        assert app.exception == []
+        assert app.sidebar.radio[0].value == section

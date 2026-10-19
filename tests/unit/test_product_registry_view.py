@@ -38,6 +38,9 @@ class FakeComposition:
     def list_supervisory_products(self):
         return []
 
+    def list_sds_files(self):
+        return ()
+
 
 def make_product(product_id: str, manufacturer_name: str) -> ProductListItem:
     return ProductListItem(
@@ -120,7 +123,7 @@ def test_product_registry_uses_product_id_and_renders_all_location_values(
 
     def select_second_row(data, **kwargs):
         result = real_dataframe(data, **kwargs)
-        if kwargs.get("key") == "product-registry":
+        if kwargs.get("key", "").startswith("product-registry-"):
             return SimpleNamespace(selection=SimpleNamespace(rows=[1]))
         return result
 
@@ -128,13 +131,16 @@ def test_product_registry_uses_product_id_and_renders_all_location_values(
     app = _app(composition).run()
 
     assert app.exception == []
+    assert composition.requested_ids == []
+    assert len(app.dataframe) == 1
+    assert "Otwórz kartę produktu" in {button.label for button in app.button}
+    app.text_input(key="product-registry-search").set_value("Sol").run()
+    app.selectbox(key="product-registry-sort").set_value("Producent").run()
+    app.button(key="open-product-card").click().run()
+    assert app.exception == []
     assert composition.requested_ids == ["product-2"]
-    assert app.dataframe[0].value.columns.tolist() == [
-        "Produkt", "Kod producenta", "Producent", "Status", "SDS", "Rewizja SDS", "BHP"
-    ]
-    assert "product_id" not in app.dataframe[0].value.columns
-    assert app.dataframe[0].value["Rewizja SDS"].tolist() == ["—", "—"]
-    assert app.dataframe[1].value.to_dict("records") == [
+    assert len(app.dataframe) == 1
+    assert app.dataframe[0].value.to_dict("records") == [
         {
             "Lokalizacja": "Linia A",
             "Maksymalna ilość": "0",
@@ -150,11 +156,117 @@ def test_product_registry_uses_product_id_and_renders_all_location_values(
             "Jednostka zużycia": "kg",
         },
     ]
-    assert any(item.value == "Producent: Manufacturer B" for item in app.text)
-    assert any(item.value == "Status użytkowania: Aktywny" for item in app.text)
+    assert any("Producent:" in item.value and "Manufacturer B" in item.value for item in app.markdown)
+    assert any("Status użytkowania:" in item.value and "Aktywny" in item.value for item in app.markdown)
     assert {"Korekta danych identyfikacyjnych", "Dodaj nową rewizję SDS", "Usuń produkt"}.issubset(
         {button.label for button in app.button}
     )
+    assert "← Produkty" in {button.label for button in app.button}
+    app.button(key="back-to-products").click().run()
+    assert app.text_input(key="product-registry-search").value == "Sol"
+    assert app.selectbox(key="product-registry-sort").value == "Producent"
+    assert len(app.dataframe) == 1
+    assert app.dataframe[0].value.columns.tolist() == [
+        "Produkt", "Kod producenta", "Producent", "Status", "SDS", "Rewizja SDS", "BHP"
+    ]
+    assert "product_id" not in app.dataframe[0].value.columns
+    assert app.dataframe[0].value["Rewizja SDS"].tolist() == ["—", "—"]
+
+
+@pytest.mark.parametrize("code, completion_visible", [(None, True), ("CODE-1", False)])
+def test_card_code_action_depends_on_missing_code(code: str | None, completion_visible: bool) -> None:
+    product = replace(make_product("product-1", "Manufacturer"), manufacturer_product_code=code)
+    composition = FakeComposition((product,), {product.product_id: make_details(product)}, "", [])
+    app = _app(composition)
+    app.session_state[product_registry.PRODUCT_CARD_KEY] = product.product_id
+    app.run()
+
+    assert app.exception == []
+    assert ("Uzupełnij kod producenta" in {button.label for button in app.button}) is completion_visible
+    assert any("Kod producenta:" in item.value and (code or "Brak danych") in item.value for item in app.markdown)
+    for title in ("Tożsamość produktu", "SDS i BHP", "Miejsca stosowania", "Dane administracyjne"):
+        assert any(f'>{title}</div>' in item.value for item in app.markdown)
+    assert len(app.dataframe) == 1
+    assert {"Korekta danych identyfikacyjnych", "Dodaj nową rewizję SDS"}.issubset(
+        {button.label for button in app.button}
+    )
+    download = app.button(key="current-sds-download-product-1")
+    assert download.label == "Pobierz SDS"
+    assert download.disabled
+    assert "Edytuj" in {button.label for button in app.button}
+    if code is None:
+        app.button(key="complete-code-product-1").click().run()
+        assert app.exception == []
+        assert app.text_input(key="new-code-product-1")
+    else:
+        app.button(key="correct-product-product-1").click().run()
+        assert app.exception == []
+        assert app.text_input(key="edit-product-name-product-1")
+    app.button(key="add-revision-product-1").click().run()
+    assert app.exception == []
+    assert app.file_uploader(key="revision-upload-product-1")
+    app.button(key="edit-admin-product-1").click().run()
+    assert app.exception == []
+    assert "Opis użycia" in {item.label for item in app.text_input}
+
+
+def test_card_actions_are_above_details_and_add_place_is_below_table(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    product = replace(make_product("product-1", "Manufacturer"), manufacturer_product_code=None)
+    composition = FakeComposition((product,), {product.product_id: make_details(product)}, "", [])
+    events: list[str] = []
+    real_button = product_registry.st.button
+    real_dataframe = product_registry.st.dataframe
+
+    def trace_button(label, **kwargs):
+        key = kwargs.get("key", "")
+        if key.startswith(("complete-code-", "correct-product-", "add-revision-", "add-location-")):
+            events.append(key)
+        return real_button(label, **kwargs)
+
+    def trace_dataframe(data, **kwargs):
+        key = kwargs.get("key", "")
+        if key.startswith("product-locations-"):
+            events.append(key)
+        return real_dataframe(data, **kwargs)
+
+    monkeypatch.setattr(product_registry.st, "button", trace_button)
+    monkeypatch.setattr(product_registry.st, "dataframe", trace_dataframe)
+    app = _app(composition)
+    app.session_state[product_registry.PRODUCT_CARD_KEY] = product.product_id
+    app.run()
+
+    assert app.exception == []
+    table_index = events.index("product-locations-product-1")
+    assert all(events.index(key) < table_index for key in (
+        "complete-code-product-1", "correct-product-product-1", "add-revision-product-1",
+    ))
+    assert table_index < events.index("add-location-product-1")
+
+
+def test_admin_editor_has_one_action_and_uses_existing_update() -> None:
+    product = make_product("product-1", "Manufacturer")
+    composition = FakeComposition((product,), {product.product_id: make_details(product)}, "", [])
+    updates = []
+    composition.update_product_administrative_data = updates.append
+    app = _app(composition)
+    app.session_state[product_registry.PRODUCT_CARD_KEY] = product.product_id
+    app.run()
+
+    assert app.exception == []
+    assert [button.label for button in app.button].count("Edytuj") == 1
+    assert "Edytuj dane administracyjne" not in {item.label for item in app.expander}
+    app.button(key="edit-admin-product-1").click().run()
+    assert app.exception == []
+    assert [button.label for button in app.button].count("Edytuj") == 1
+    assert "Edytuj dane administracyjne" not in {item.label for item in app.expander}
+    next(item for item in app.text_input if item.label == "Opis użycia").set_value("Nowy opis")
+    app.button(key="product-admin-product-1").click().run()
+    assert app.exception == []
+    assert len(updates) == 1
+    assert updates[0].product_id == product.product_id
+    assert updates[0].use_description == "Nowy opis"
 
 
 def test_registry_empty_and_no_selection_have_controlled_states() -> None:
@@ -170,6 +282,18 @@ def test_registry_empty_and_no_selection_have_controlled_states() -> None:
     assert app.exception == []
     assert app.info[0].value.startswith("Wybierz produkt w tabeli")
     assert composition.requested_ids == []
+
+
+def test_registry_search_and_sort_keep_table_usable() -> None:
+    zeta = replace(make_product("zeta", "Maker Z"), product_name="Zeta")
+    alpha = replace(make_product("alpha", "Maker A"), product_name="Alpha")
+    app = _app(FakeComposition((zeta, alpha), {}, "", [])).run()
+
+    app.selectbox(key="product-registry-sort").set_value("Produkt").run()
+    assert app.dataframe[0].value["Produkt"].tolist() == ["Alpha", "Zeta"]
+    app.text_input(key="product-registry-search").set_value("Maker Z").run()
+    assert app.dataframe[0].value["Produkt"].tolist() == ["Zeta"]
+    assert app.exception == []
 
 
 @pytest.mark.parametrize("revision, expected", [("2", "2"), (None, "—")])
@@ -199,8 +323,28 @@ def test_registry_presents_existing_sds_bhp_and_preserves_domain_status(
         current_bhp_evidence_relative_path=None,
         current_bhp_evidence_available=False,
     )
-    composition = FakeComposition((product,), {}, "", [])
+    composition = FakeComposition((product,), {product.product_id: make_details(product)}, "", [])
+    render_order: list[str] = []
+    real_download = product_registry.st.download_button
+    real_card_fields = product_registry._card_fields
+
+    def trace_download(*args, **kwargs):
+        render_order.append("download")
+        return real_download(*args, **kwargs)
+
+    def trace_card_fields(*args, **kwargs):
+        if kwargs.get("title") == "SDS i BHP":
+            render_order.append("sds_section")
+        return real_card_fields(*args, **kwargs)
+
+    monkeypatch.setattr(product_registry.st, "download_button", trace_download)
+    monkeypatch.setattr(product_registry, "_card_fields", trace_card_fields)
     monkeypatch.setattr(composition, "list_supervisory_products", lambda: [row])
+    monkeypatch.setattr(
+        composition, "get_current_sds_file",
+        lambda _product_id: SimpleNamespace(content=b"%PDF-1.4", original_filename="current.pdf"),
+        raising=False,
+    )
     app = _app(composition).run()
 
     assert app.exception == []
@@ -211,6 +355,15 @@ def test_registry_presents_existing_sds_bhp_and_preserves_domain_status(
     }]
     assert "sds-id" not in app.dataframe[0].value.to_string()
     assert product.usage_status is ProductUsageStatus.ACTIVE
+
+    app.session_state[product_registry.PRODUCT_CARD_KEY] = product.product_id
+    app.run()
+    assert app.exception == []
+    assert render_order == ["download", "sds_section"]
+    assert any("current.pdf" in item.value for item in app.markdown)
+    assert any("Zatwierdzona" in item.value for item in app.markdown)
+    card_revision = revision or "Brak danych"
+    assert any(f"Rewizja SDS: {card_revision}" in item.value for item in app.markdown)
 
 
 @pytest.mark.parametrize("uploaded", [False, True])
@@ -543,7 +696,7 @@ def test_usage_assignments_empty_state_and_closed_forms():
     app = AppTest.from_function(render, args=(details, Composition())).run()
     assert not app.exception
     assert any(item.value == "Brak przypisanych miejsc stosowania." for item in app.info)
-    assert "+ Dodaj miejsce stosowania" in {button.label for button in app.button}
+    assert "+ Dodaj miejsce" in {button.label for button in app.button}
     assert "Maksymalna ilość na stanowisku" not in {item.label for item in app.text_input}
 
 

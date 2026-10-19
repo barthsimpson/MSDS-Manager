@@ -2,8 +2,12 @@
 
 from dataclasses import dataclass, field
 from datetime import date
+from typing import TYPE_CHECKING
 
 from app.domain.enums import SafetyInformationStatus
+
+if TYPE_CHECKING:
+    from app.application.dto.approved_import import IdentityDecision
 
 
 @dataclass
@@ -75,6 +79,9 @@ class SdsDraft:
 @dataclass
 class AcceptSdsInput(SdsDraft):
     """User-approved draft contract for the future Core write workflow."""
+
+    controlled_manufacturer_decision: "IdentityDecision | None" = None
+    controlled_product_decision: "IdentityDecision | None" = None
 
 
 @dataclass

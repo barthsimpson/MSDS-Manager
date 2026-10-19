@@ -26,13 +26,68 @@ from app.infrastructure.db.models import (
 
 
 class SqlAlchemySdsAcceptanceRepository(SdsAcceptanceRepositoryPort):
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, allow_controlled: bool = False) -> None:
         self._session = session
+        self._allow_controlled = allow_controlled
 
     def accept(self, data: AcceptSdsInput) -> str:
-        manufacturer = self._resolve_manufacturer(data.manufacturer_name)
-        product = self._resolve_product(data, manufacturer.manufacturer_id)
+        if data.controlled_manufacturer_decision is not None or data.controlled_product_decision is not None:
+            if not self._allow_controlled:
+                raise ValueError("Controlled identity registration requires the locked import transaction.")
+            manufacturer, product = self._resolve_controlled_create(data)
+        else:
+            manufacturer = self._resolve_manufacturer(data.manufacturer_name)
+            product = self._resolve_product(data, manufacturer.manufacturer_id)
         return self._persist_sds(product, data)
+
+    def _resolve_controlled_create(self, data: AcceptSdsInput) -> tuple[ManufacturerModel, ProductModel]:
+        manufacturer_decision = data.controlled_manufacturer_decision
+        product_decision = data.controlled_product_decision
+        if manufacturer_decision is None or product_decision is None or product_decision.action != "CREATE":
+            raise ValueError("Invalid controlled CREATE decisions.")
+        if manufacturer_decision.name != data.manufacturer_name or product_decision.name != data.product_name:
+            raise ValueError("Controlled identity does not match accepted SDS.")
+        exact_manufacturers = self._session.scalars(
+            select(ManufacturerModel).where(ManufacturerModel.manufacturer_name == data.manufacturer_name)
+        ).all()
+        if manufacturer_decision.action == "CREATE":
+            if exact_manufacturers or manufacturer_decision.selected_id is not None:
+                raise ValueError("STALE_RESOLUTION: manufacturer CREATE")
+            manufacturer = ManufacturerModel(
+                manufacturer_id=uuid4().hex, manufacturer_name=data.manufacturer_name,
+            )
+            self._session.add(manufacturer)
+            self._session.flush()
+        elif manufacturer_decision.action == "LINK":
+            selected = next(
+                (row for row in exact_manufacturers
+                 if row.manufacturer_id == manufacturer_decision.selected_id), None
+            )
+            if selected is None:
+                raise ValueError("STALE_RESOLUTION: manufacturer LINK")
+            manufacturer = selected
+        else:
+            raise ValueError("Invalid controlled manufacturer action.")
+        query = select(ProductModel).where(
+            ProductModel.product_name == data.product_name,
+            ProductModel.manufacturer_id == manufacturer.manufacturer_id,
+        )
+        if data.manufacturer_product_code is not None:
+            query = query.where(ProductModel.manufacturer_product_code == data.manufacturer_product_code)
+        if self._session.scalars(query).all() or product_decision.selected_id is not None:
+            raise ValueError("STALE_RESOLUTION: product CREATE")
+        if product_decision.manufacturer_product_code != data.manufacturer_product_code:
+            raise ValueError("Controlled product code does not match accepted SDS.")
+        product = ProductModel(
+            product_id=uuid4().hex, product_name=data.product_name,
+            manufacturer_product_code=data.manufacturer_product_code,
+            manufacturer_id=manufacturer.manufacturer_id,
+            use_description=data.use_description, use_restriction=data.use_restriction,
+            usage_status=ProductUsageStatus.PENDING_APPROVAL,
+        )
+        self._session.add(product)
+        self._session.flush()
+        return manufacturer, product
 
     def accept_revision(self, data: AddSdsRevisionInput) -> str:
         product = self._session.get(ProductModel, data.product_id)

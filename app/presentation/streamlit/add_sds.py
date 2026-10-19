@@ -135,7 +135,7 @@ def _render_draft(composition: ShellComposition) -> None:
         ) or None
     with code_column:
         draft.manufacturer_product_code = st.text_input(
-            "Kod producenta *", draft.manufacturer_product_code or "", key="sds-product-code"
+            "Kod producenta — opcjonalne", draft.manufacturer_product_code or "", key="sds-product-code"
         ) or None
     draft.manufacturer_name = st.text_input(
         "Producent *", draft.manufacturer_name or "", key="sds-manufacturer"
