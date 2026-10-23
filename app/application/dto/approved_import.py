@@ -13,6 +13,8 @@ class IdentityDecision:
     selected_id: str | None = None
     manufacturer_product_code: str | None = None
     null_code_link_confirmed: bool = False
+    manufacturer_link_confirmed: bool = False
+    selected_record_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,9 +40,13 @@ class ApprovedImportPlan:
     issue_date: date | None
     revision: str | None
     original_filename: str
-    use_description: str
-    use_restriction: str
-    safety_profile: SdsSafetyProfileDraft
-    safety_fingerprint: str
+    use_description: str | None
+    use_restriction: str | None
+    safety_profile: SdsSafetyProfileDraft | None
+    safety_fingerprint: str | None
     pdf_fingerprint: str
     human_approval: HumanApproval
+    registration_readiness: str = "IDENTITY_REGISTRATION_READY"
+    safety_readiness: str = "SAFETY_ENRICHMENT_PENDING"
+    manufacturer_selected_name: str | None = None
+    expected_manufacturer_snapshot: tuple[tuple[str, str], ...] = ()

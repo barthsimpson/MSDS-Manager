@@ -7,6 +7,7 @@ from typing import Any
 
 from app.application.dto.evidence_json import IdentityResolution, SdsJsonImportPlan
 from app.application.ports.evidence_identity_read import EvidenceIdentityReadPort
+from app.application.manufacturer_identity import manufacturer_candidates
 
 
 STATES = frozenset({"FOUND", "NOT_FOUND", "AMBIGUOUS", "UNREADABLE"})
@@ -218,8 +219,7 @@ class PlanEvidenceJsonImport:
             blockers.append("MANUFACTURER_REQUIRES_HUMAN_REVIEW")
             manufacturer_resolution = IdentityResolution("HUMAN_REVIEW")
         else:
-            exact = self._identity_read.manufacturers_named(canonical)
-            similar = self._identity_read.similar_manufacturers(canonical)
+            exact, similar = manufacturer_candidates(self._identity_read, canonical)
             if raw not in GOLDEN_MANUFACTURERS:
                 manufacturer_resolution = IdentityResolution(
                     "HUMAN_REVIEW", tuple(row.record_id for row in exact), canonical,
@@ -262,9 +262,8 @@ class PlanEvidenceJsonImport:
             blockers.append("EXTRACTION_REQUIRES_HUMAN_REVIEW")
         if document["review_status"] != "APPROVED":
             blockers.append("DOCUMENT_HUMAN_APPROVAL_REQUIRED")
-        blockers.append("INCOMPLETE_SAFETY_DATA")
         if document["safety_profile"]:
-            warnings.append("SAFETY_DATA_REQUIRES_CONTROLLED_REVIEW")
+            warnings.append("SAFETY_DATA_DEFERRED_TO_STAGE_2")
         manual = ("use_description", "use_restriction")
         return SdsJsonImportPlan(
             key, filename, "VALID", (), name, code, issue_date, revision,

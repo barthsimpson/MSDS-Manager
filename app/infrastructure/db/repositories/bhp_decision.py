@@ -26,6 +26,7 @@ from app.infrastructure.db.models import (
     BhpDecisionModel,
     ProductHistoryModel,
     ProductModel,
+    SafetyProfileModel,
     SdsDocumentModel,
 )
 from .decision_evidence import to_model
@@ -113,6 +114,9 @@ class SqlAlchemyBhpDecisionRepository(BhpDecisionRepositoryPort):
     def verify_scope(self, product_id: str, sds_id: str) -> None:
         self._get_scope(product_id, sds_id)
 
+    def require_safety_enrichment(self, product_id: str, sds_id: str) -> None:
+        self._get_scope(product_id, sds_id)
+
     def _get_scope(self, product_id: str, sds_id: str):
         product = self._session.get(ProductModel, product_id)
         if product is None:
@@ -125,6 +129,16 @@ class SqlAlchemyBhpDecisionRepository(BhpDecisionRepositoryPort):
             raise ValueError("SDS does not belong to product.")
         if sds.document_status is not SdsDocumentStatus.CURRENT:
             raise ValueError("SDS is not CURRENT.")
+        if self._session.get(SafetyProfileModel, sds_id) is None:
+            raise ValueError(
+                "Dane bezpieczeństwa SDS nie zostały jeszcze uzupełnione. "
+                "Najpierw wykonaj analizę bezpieczeństwa SDS."
+            )
+        if product.use_description is None or product.use_restriction is None:
+            raise ValueError(
+                "Dane zastosowania produktu nie zostały jeszcze uzupełnione. "
+                "Uzupełnij opis zastosowania i ograniczenia przed decyzją BHP."
+            )
         return product, sds
 
     def _after_evidence_created(self) -> None:

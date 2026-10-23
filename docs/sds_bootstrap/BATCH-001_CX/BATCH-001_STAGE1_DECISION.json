@@ -1,0 +1,15 @@
+{
+  "batch": "BATCH-001_CX",
+  "evidence_json": "B001-P001_DOC-001.json",
+  "document_key": "DOC-001",
+  "json_sha256": "9b8b107cb6d5fb8c61ab6cd2ddbf63cfe6cff8f3399229d431095c339da902f9",
+  "source_pdf_sha256": "a5078d259e7d34ff1b89b54e39925ba0b642873a2a6ab22a21ed8af834c81442",
+  "canonical_manufacturer": "CX80 POLSKA",
+  "existing_manufacturer_name": "CX80 Polska",
+  "product_name": "ALUCYNK",
+  "manufacturer_product_code": null,
+  "issue_date": "2023-01-23",
+  "revision": "2.0",
+  "approved_by": "TASK-056 Architect batch decision",
+  "approved": true
+}

@@ -20,6 +20,7 @@ class RegisterBhpDecision:
 
     def execute(self, data: RegisterBhpDecisionInput) -> RegisterBhpDecisionResult:
         self._validate(data)
+        self._repository.require_safety_enrichment(data.product_id, data.sds_id)
         normalized_evidence_path = self._evidence_validator.validate(
             data.evidence_relative_path
         )

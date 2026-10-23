@@ -37,12 +37,27 @@ class FakeBhpDecisionRepository:
             evidence_relative_path="evidence/decision.pdf",
         )
         self.error: Exception | None = None
+        self.safety_pending = False
 
     def register(self, data: RegisterBhpDecisionInput) -> RegisterBhpDecisionResult:
         self.inputs.append(data)
         if self.error is not None:
             raise self.error
         return self.result
+
+    def require_safety_enrichment(self, product_id: str, sds_id: str) -> None:
+        if self.safety_pending:
+            raise ValueError("Dane bezpieczeństwa SDS nie zostały jeszcze uzupełnione.")
+
+
+def test_stage1_sds_blocks_bhp_decision_before_evidence_validation() -> None:
+    validator = FakeEvidenceValidator()
+    repository = FakeBhpDecisionRepository()
+    repository.safety_pending = True
+    with pytest.raises(ValueError, match="Dane bezpieczeństwa SDS"):
+        RegisterBhpDecision(validator, repository).execute(decision_input(BhpDecisionStatus.APPROVED))
+    assert validator.paths == []
+    assert repository.inputs == []
 
 
 def decision_input(status: BhpDecisionStatus) -> RegisterBhpDecisionInput:

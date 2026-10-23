@@ -8,6 +8,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.application.dto import AcceptSdsInput, AddSdsRevisionInput
+from app.application.dto.sds import Stage1SdsInput
 from app.application.ports import SdsAcceptanceRepositoryPort
 from app.domain.enums import (
     FileAvailabilityStatus,
@@ -40,18 +41,34 @@ class SqlAlchemySdsAcceptanceRepository(SdsAcceptanceRepositoryPort):
             product = self._resolve_product(data, manufacturer.manufacturer_id)
         return self._persist_sds(product, data)
 
-    def _resolve_controlled_create(self, data: AcceptSdsInput) -> tuple[ManufacturerModel, ProductModel]:
+    def register_stage1(self, data: Stage1SdsInput) -> str:
+        """Use controlled identity resolution; leave safety tables untouched."""
+        if not self._allow_controlled:
+            raise ValueError("Controlled identity registration requires the locked import transaction.")
+        if data.controlled_product_decision.action == "CREATE":
+            _, product = self._resolve_controlled_create(data)
+        elif data.controlled_product_decision.action == "LINK":
+            product = self._session.get(ProductModel, data.product_id)
+            if product is None or product.product_id != data.controlled_product_decision.selected_id:
+                raise ValueError("STALE_RESOLUTION: product LINK")
+        else:
+            raise ValueError("Invalid controlled product decision.")
+        return self._persist_sds(product, data, include_safety=False)
+
+    def _resolve_controlled_create(self, data: AcceptSdsInput | Stage1SdsInput) -> tuple[ManufacturerModel, ProductModel]:
         manufacturer_decision = data.controlled_manufacturer_decision
         product_decision = data.controlled_product_decision
         if manufacturer_decision is None or product_decision is None or product_decision.action != "CREATE":
             raise ValueError("Invalid controlled CREATE decisions.")
         if manufacturer_decision.name != data.manufacturer_name or product_decision.name != data.product_name:
             raise ValueError("Controlled identity does not match accepted SDS.")
-        exact_manufacturers = self._session.scalars(
-            select(ManufacturerModel).where(ManufacturerModel.manufacturer_name == data.manufacturer_name)
-        ).all()
         if manufacturer_decision.action == "CREATE":
-            if exact_manufacturers or manufacturer_decision.selected_id is not None:
+            exact = self._session.scalars(
+                select(ManufacturerModel).where(
+                    ManufacturerModel.manufacturer_name == data.manufacturer_name
+                )
+            ).all()
+            if exact or manufacturer_decision.selected_id is not None:
                 raise ValueError("STALE_RESOLUTION: manufacturer CREATE")
             manufacturer = ManufacturerModel(
                 manufacturer_id=uuid4().hex, manufacturer_name=data.manufacturer_name,
@@ -59,11 +76,9 @@ class SqlAlchemySdsAcceptanceRepository(SdsAcceptanceRepositoryPort):
             self._session.add(manufacturer)
             self._session.flush()
         elif manufacturer_decision.action == "LINK":
-            selected = next(
-                (row for row in exact_manufacturers
-                 if row.manufacturer_id == manufacturer_decision.selected_id), None
-            )
-            if selected is None:
+            selected = self._session.get(ManufacturerModel, manufacturer_decision.selected_id)
+            if (selected is None or not manufacturer_decision.manufacturer_link_confirmed
+                    or selected.manufacturer_name != manufacturer_decision.selected_record_name):
                 raise ValueError("STALE_RESOLUTION: manufacturer LINK")
             manufacturer = selected
         else:
@@ -96,7 +111,8 @@ class SqlAlchemySdsAcceptanceRepository(SdsAcceptanceRepositoryPort):
         return self._persist_sds(product, data)
 
     def _persist_sds(
-        self, product: ProductModel, data: AcceptSdsInput | AddSdsRevisionInput
+        self, product: ProductModel, data: AcceptSdsInput | AddSdsRevisionInput | Stage1SdsInput,
+        *, include_safety: bool = True,
     ) -> str:
         now = datetime.now(timezone.utc)
         self._session.execute(
@@ -122,7 +138,8 @@ class SqlAlchemySdsAcceptanceRepository(SdsAcceptanceRepositoryPort):
                 file_status=FileAvailabilityStatus.AVAILABLE,
             )
         )
-        self._session.add(self._profile_model(sds_id, data, now))
+        if include_safety:
+            self._session.add(self._profile_model(sds_id, data, now))
         self._session.add_all(
             SdsComponentModel(
                 component_id=uuid4().hex,
@@ -135,7 +152,7 @@ class SqlAlchemySdsAcceptanceRepository(SdsAcceptanceRepositoryPort):
                 classification_text=component.classification_text,
                 hazard_statements=component.hazard_statements,
             )
-            for component in data.components
+            for component in (data.components if include_safety else ())
         )
         self._session.add(
             ProductHistoryModel(

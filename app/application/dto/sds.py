@@ -85,6 +85,24 @@ class AcceptSdsInput(SdsDraft):
 
 
 @dataclass
+class Stage1SdsInput:
+    """Controlled registration of SDS identity without safety assessment."""
+
+    source_relative_path: str
+    original_filename: str
+    product_name: str
+    manufacturer_product_code: str | None
+    manufacturer_name: str
+    use_description: str | None
+    use_restriction: str | None
+    issue_date: date | None
+    revision: str | None
+    controlled_manufacturer_decision: "IdentityDecision"
+    controlled_product_decision: "IdentityDecision"
+    product_id: str | None = None
+
+
+@dataclass
 class AddSdsRevisionInput:
     """User-approved SDS revision for an explicitly selected product."""
 

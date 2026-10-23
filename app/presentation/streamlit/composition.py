@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sqlalchemy import Engine
 from sqlalchemy import select
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -43,6 +44,12 @@ from app.application.use_cases.physical_review import (
 from datetime import date
 from decimal import Decimal
 from app.application.use_cases.import_sds import ImportSds
+from app.application.dto.approved_import import HumanApproval, IdentityDecision, ApprovedImportPlan
+from app.application.dto.sds import SdsSafetyProfileDraft
+from app.application.use_cases.controlled_evidence_import import (
+    ControlledEvidenceImport, approve_import_plan,
+)
+from app.application.use_cases.plan_evidence_json_import import PlanEvidenceJsonImport
 from app.application.use_cases.get_current_sds_file import CurrentSdsFile, GetCurrentSdsFile
 from app.application.use_cases.bhp_evidence import ImportBhpEvidence, ListBhpEvidence, ReadBhpEvidence
 from app.domain.models import UnitOfMeasure
@@ -70,6 +77,7 @@ from app.application.use_cases import (
     ListAnalyticsProductLocations,
 )
 from app.infrastructure.config import ConfigurationError, Settings, load_settings
+from app.infrastructure.config.settings import PROJECT_ROOT
 from app.infrastructure.db.repositories import (
     SqlAlchemyProductHistoryRepository,
     SqlAlchemyProductRepository,
@@ -92,10 +100,13 @@ from app.infrastructure.db.session import (
     create_session_factory,
 )
 from app.infrastructure.db.transactions import PersistenceError, TransactionExecutor
-from app.infrastructure.db.models import ProductModel
+from app.infrastructure.db.models import ProductModel, SdsDocumentModel
+from app.infrastructure.db.controlled_evidence_registration import SqlAlchemyControlledEvidenceRegistration
+from app.infrastructure.db.repositories.evidence_identity_read import SqlAlchemyEvidenceIdentityRead
 from app.infrastructure.filesystem.pdf_sds_extractor import PdfSdsExtractor
 from app.infrastructure.filesystem.sds_file_validator import SdsFileValidator
 from app.infrastructure.filesystem.sds_pdf_storage import SdsPdfStorage
+from app.infrastructure.filesystem.evidence_source_pdf import SourcePdfBinding, resolve_source_pdf
 from app.infrastructure.filesystem.bhp_evidence_storage import BhpEvidenceStorage
 from app.infrastructure.filesystem.analytics_availability import AnalyticsFileAvailabilityAdapter
 
@@ -119,6 +130,59 @@ class ShellComposition:
     sds_root_path: Path
     bhp_evidence_root_path: Path = Path(".")
     settings: Settings | None = None
+    evidence_manifest_path: Path = (
+        PROJECT_ROOT / "docs/sds_bootstrap/BATCH-001_CX/BATCH-001_MANIFEST.json"
+    )
+
+    def resolve_evidence_pdf(self, json_filename: str, payload: dict,
+                             fallback: tuple[str, bytes] | None = None) -> SourcePdfBinding:
+        return resolve_source_pdf(self.evidence_manifest_path, json_filename, payload, fallback)
+
+    def _evidence_read(self, operation):
+        with self.session_factory() as session:
+            session.execute(text("SET TRANSACTION READ ONLY"))
+            return operation(SqlAlchemyEvidenceIdentityRead(session))
+
+    def dry_run_evidence_json(self, payload: dict):
+        return self._evidence_read(lambda read: PlanEvidenceJsonImport(read).execute(payload))
+
+    def evidence_candidates(self, manufacturer_name: str, product_name: str,
+                            manufacturer_id: str | None, code: str | None):
+        from app.application.manufacturer_identity import manufacturer_candidates
+        def candidates(read):
+            exact, similar = manufacturer_candidates(read, manufacturer_name)
+            products = (read.products_for_manufacturer(product_name, manufacturer_id, code)
+                        if manufacturer_id else ())
+            return exact, similar, products
+        return self._evidence_read(candidates)
+
+    def approve_evidence_import(
+        self, raw_json: bytes, document_key: str, manufacturer: IdentityDecision,
+        product: IdentityDecision, use_description: str | None, use_restriction: str | None,
+        safety_profile: SdsSafetyProfileDraft | None, original_filename: str,
+        pdf_bytes: bytes, approval: HumanApproval,
+    ) -> ApprovedImportPlan:
+        return self._evidence_read(lambda read: approve_import_plan(
+            raw_json, document_key, read, manufacturer, product,
+            use_description=use_description, use_restriction=use_restriction,
+            safety_profile=safety_profile, original_filename=original_filename,
+            pdf_bytes=pdf_bytes, approval=approval,
+        ))
+
+    def commit_evidence_import(self, plan: ApprovedImportPlan,
+                               raw_json: bytes, pdf_bytes: bytes) -> str:
+        return ControlledEvidenceImport(
+            SqlAlchemyControlledEvidenceRegistration(self.session_factory, self.sds_root_path),
+            ImportSds(SdsPdfStorage(self.sds_root_path)),
+        ).execute(plan, raw_json, pdf_bytes)
+
+    def evidence_import_result(self, sds_id: str):
+        with self.session_factory() as session:
+            session.execute(text("SET TRANSACTION READ ONLY"))
+            row = session.get(SdsDocumentModel, sds_id)
+            if row is None:
+                raise ValueError("Nie znaleziono zapisanego SDS.")
+            return row.product_id, row.document_status.value, row.original_filename
 
     def list_manufacturers(self):
         try:

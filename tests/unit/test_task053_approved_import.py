@@ -28,7 +28,9 @@ class Read:
         return tuple(row for row in self.manufacturers if row.name == name)
 
     def similar_manufacturers(self, name):
-        return ()
+        token = name.split(" ", 1)[0].casefold()
+        return tuple(row for row in self.manufacturers
+                     if row.name != name and row.name.split(" ", 1)[0].casefold() == token)
 
     def products_named(self, name):
         return tuple(row for row in self.products if row.name == name)
@@ -85,13 +87,58 @@ def test_null_code_link_requires_explicit_confirmation():
         products=(IdentityRecord("p1", "ALUCYNK", "KNOWN"),),
     )
     decisions = dict(
-        manufacturer=IdentityDecision("LINK", "CX80 POLSKA", selected_id="m1"),
+        manufacturer=IdentityDecision("LINK", "CX80 POLSKA", selected_id="m1",
+                                      manufacturer_link_confirmed=True),
         product=IdentityDecision("LINK", "ALUCYNK", selected_id="p1"),
     )
     with pytest.raises(ImportPlanError, match="NULL_CODE_LINK_CONFIRMATION_REQUIRED"):
         approve(read, **decisions)
     decisions["product"] = replace(decisions["product"], null_code_link_confirmed=True)
     assert approve(read, **decisions).product_decision.selected_id == "p1"
+
+
+def test_similar_manufacturer_link_requires_explicit_confirmation_and_snapshot():
+    read = Read(manufacturers=(
+        IdentityRecord("cx80", "CX80"),
+        IdentityRecord("approved", "CX80 Polska"),
+        IdentityRecord("mixed", "Cx80"),
+    ))
+    product = IdentityDecision("CREATE", "ALUCYNK")
+    create_plan = approve(read, manufacturer=IdentityDecision("CREATE", "CX80 POLSKA"), product=product)
+    assert create_plan.manufacturer_decision.action == "CREATE"
+    with pytest.raises(ImportPlanError, match="MANUFACTURER_LINK_CONFIRMATION_REQUIRED"):
+        approve(read, manufacturer=IdentityDecision("LINK", "CX80 POLSKA", selected_id="approved"),
+                product=product)
+    with pytest.raises(ImportPlanError, match="LINK_TARGET_NOT_APPROVED"):
+        approve(read, manufacturer=IdentityDecision(
+            "LINK", "CX80 POLSKA", selected_id="unknown",
+            manufacturer_link_confirmed=True,
+        ), product=product)
+    plan = approve(read, manufacturer=IdentityDecision(
+        "LINK", "CX80 POLSKA", selected_id="approved",
+        manufacturer_link_confirmed=True,
+    ), product=product)
+    assert plan.manufacturer_selected_name == "CX80 Polska"
+    assert plan.manufacturer_decision.selected_record_name == "CX80 Polska"
+    assert plan.expected_manufacturer_candidates == ("cx80", "approved", "mixed")
+    assert plan.expected_manufacturer_snapshot == (
+        ("cx80", "CX80"), ("approved", "CX80 Polska"), ("mixed", "Cx80"),
+    )
+
+
+def test_another_similar_manufacturer_requires_human_choice_too():
+    read = Read(manufacturers=(IdentityRecord("other", "Example Polska"),))
+    payload = json.loads(RAW_JSON)
+    payload["documents"][0]["parties"][0]["name"]["value"] = "Example Company"
+    with pytest.raises(ImportPlanError, match="MANUFACTURER_LINK_CONFIRMATION_REQUIRED"):
+        approve(read, raw_json=json.dumps(payload).encode(),
+                manufacturer=IdentityDecision("LINK", "Example POLSKA", selected_id="other"))
+    plan = approve(read, raw_json=json.dumps(payload).encode(),
+                   manufacturer=IdentityDecision(
+                       "LINK", "Example POLSKA", selected_id="other",
+                       manufacturer_link_confirmed=True,
+                   ))
+    assert plan.manufacturer_decision.selected_record_name == "Example Polska"
 
 
 def test_new_raw_manufacturer_requires_explicit_canonical_decision():

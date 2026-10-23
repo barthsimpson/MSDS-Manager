@@ -65,7 +65,11 @@ def main() -> None:
         return
 
     try:
-        section = st.sidebar.radio("Sekcja", SECTIONS, format_func=_section_label)
+        target = st.session_state.pop("shell-navigation-target", None)
+        if target in SECTIONS:
+            st.session_state["shell-section"] = target
+        section = st.sidebar.radio("Sekcja", SECTIONS, format_func=_section_label,
+                                   key="shell-section")
         if section != "Produkty":
             st.session_state.pop(PRODUCT_CARD_KEY, None)
         if section == "Analizy" and st.session_state.get("shell-previous-section") != "Analizy":

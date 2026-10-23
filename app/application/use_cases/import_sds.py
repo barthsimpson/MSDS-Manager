@@ -5,12 +5,14 @@ from dataclasses import replace
 from typing import TypeVar
 
 from app.application.dto import AcceptSdsInput, AddSdsRevisionInput
+from app.application.dto.sds import Stage1SdsInput
 from app.application.ports import SdsPdfStoragePort
 from app.application.use_cases.accept_sds import AcceptSds
 from app.application.use_cases.add_sds_revision import AddSdsRevision
+from app.application.use_cases.register_stage1_sds import RegisterStage1Sds
 
 
-Registration = AcceptSdsInput | AddSdsRevisionInput
+Registration = AcceptSdsInput | AddSdsRevisionInput | Stage1SdsInput
 Result = TypeVar("Result")
 
 
@@ -38,6 +40,12 @@ class ImportSds:
         pending = replace(data, source_relative_path="pending.pdf")
         if isinstance(data, AcceptSdsInput):
             AcceptSds._validate(pending)
+        elif isinstance(data, Stage1SdsInput):
+            RegisterStage1Sds._validate(pending)
+            if data.product_id:
+                if verify_product is None:
+                    raise ValueError("Product verification is required for an SDS revision.")
+                verify_product(data.product_id)
         else:
             AddSdsRevision._validate(pending)
             if verify_product is None:

@@ -9,6 +9,7 @@ from app.application.use_cases.import_sds import SdsImportCleanupError
 from app.domain.enums import SafetyInformationStatus
 from app.infrastructure.db.transactions import PersistenceError
 from app.presentation.streamlit.composition import ShellComposition, ShellInitializationError
+from app.presentation.streamlit.evidence_import import render_evidence_import
 
 
 DRAFT_KEY = "add_sds_draft"
@@ -177,6 +178,14 @@ def _render_draft(composition: ShellComposition) -> None:
 
 def render_add_sds(composition: ShellComposition) -> None:
     st.header("Dodaj SDS")
+    evidence_tab, manual_tab = st.tabs(("Import z Evidence JSON", "Dodanie ręczne"))
+    with evidence_tab:
+        render_evidence_import(composition)
+    with manual_tab:
+        _render_manual_add_sds(composition)
+
+
+def _render_manual_add_sds(composition: ShellComposition) -> None:
     if DRAFT_KEY in st.session_state:
         _render_draft(composition)
         return

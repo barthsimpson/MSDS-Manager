@@ -117,7 +117,8 @@ def test_alucynk_create_then_explicit_link_revision(isolated_database, tmp_path)
         product_id = products[0].product_id
         first_path = sds_rows[0].relative_path
 
-    link_manufacturer = IdentityDecision("LINK", "CX80 POLSKA", selected_id=manufacturer_id)
+    link_manufacturer = IdentityDecision("LINK", "CX80 POLSKA", selected_id=manufacturer_id,
+                                         manufacturer_link_confirmed=True)
     link_product = IdentityDecision(
         "LINK", "ALUCYNK", selected_id=product_id, null_code_link_confirmed=True,
     )
@@ -177,7 +178,8 @@ def test_manufacturer_link_product_create_and_known_code_null_link(isolated_data
     with session_factory() as session:
         manufacturer_id = session.scalar(select(ManufacturerModel.manufacturer_id))
         product_id = session.scalar(select(ProductModel.product_id))
-    manufacturer_link = IdentityDecision("LINK", "CX80 POLSKA", selected_id=manufacturer_id)
+    manufacturer_link = IdentityDecision("LINK", "CX80 POLSKA", selected_id=manufacturer_id,
+                                         manufacturer_link_confirmed=True)
 
     second = json.loads(RAW_JSON)
     second["documents"][0]["product"]["product_name"]["value"] = "SECOND PRODUCT"
@@ -214,7 +216,8 @@ def test_missing_link_target_stops_before_pdf_write(isolated_database, tmp_path)
             usage_status=ProductUsageStatus.ACTIVE,
         ))
     plan = _approve(
-        session_factory, IdentityDecision("LINK", "CX80 POLSKA", selected_id="m1"),
+        session_factory, IdentityDecision("LINK", "CX80 POLSKA", selected_id="m1",
+                                          manufacturer_link_confirmed=True),
         IdentityDecision("LINK", "ALUCYNK", selected_id="p1",
                          null_code_link_confirmed=True),
     )
@@ -256,7 +259,8 @@ def test_stale_product_create_stops_without_sds_or_pdf(isolated_database, tmp_pa
     with session_factory.begin() as session:
         session.add(ManufacturerModel(manufacturer_id="m1", manufacturer_name="CX80 POLSKA"))
     plan = _approve(
-        session_factory, IdentityDecision("LINK", "CX80 POLSKA", selected_id="m1"),
+        session_factory, IdentityDecision("LINK", "CX80 POLSKA", selected_id="m1",
+                                          manufacturer_link_confirmed=True),
         IdentityDecision("CREATE", "ALUCYNK"),
     )
     with session_factory.begin() as session:
@@ -285,7 +289,8 @@ def test_null_code_link_detects_changed_known_db_code(isolated_database, tmp_pat
             usage_status=ProductUsageStatus.ACTIVE,
         ))
     plan = _approve(
-        session_factory, IdentityDecision("LINK", "CX80 POLSKA", selected_id="m1"),
+        session_factory, IdentityDecision("LINK", "CX80 POLSKA", selected_id="m1",
+                                          manufacturer_link_confirmed=True),
         IdentityDecision("LINK", "ALUCYNK", selected_id="p1",
                          null_code_link_confirmed=True),
     )

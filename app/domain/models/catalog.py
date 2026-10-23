@@ -49,8 +49,8 @@ class Product:
     product_name: str
     manufacturer_product_code: str | None
     manufacturer_id: str
-    use_description: str
-    use_restriction: str
+    use_description: str | None
+    use_restriction: str | None
     usage_status: ProductUsageStatus
     waste_type: str | None = None
     waste_code: str | None = None
@@ -105,8 +105,8 @@ class ProductUsageLocation:
 class ProductHistory:
     product_id: str
     usage_status: ProductUsageStatus
-    use_description: str
-    use_restriction: str
+    use_description: str | None
+    use_restriction: str | None
     waste_type: str | None = None
     waste_code: str | None = None
     history_id: str = field(default_factory=lambda: uuid4().hex)

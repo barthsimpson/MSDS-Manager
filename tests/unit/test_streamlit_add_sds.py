@@ -45,7 +45,7 @@ def _app(composition: FakeComposition):
 
         render_add_sds(current_composition)
 
-    return AppTest.from_function(render, args=(composition,))
+    return AppTest.from_function(render, args=(composition,), default_timeout=10)
 
 
 def test_add_sds_reads_and_accepts_manual_correction() -> None:
@@ -131,7 +131,7 @@ def test_add_sds_accepts_date_without_revision() -> None:
 def test_uploaded_sds_is_imported_only_on_accept() -> None:
     composition = FakeComposition()
     app = _app(composition).run()
-    assert app.file_uploader[0].label == "Wybierz plik PDF z komputera"
+    assert any(item.label == "Wybierz plik PDF z komputera" for item in app.file_uploader)
     assert composition.imported == []
 
     from app.presentation.streamlit.add_sds import DRAFT_KEY, UPLOAD_KEY

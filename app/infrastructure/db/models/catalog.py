@@ -32,8 +32,8 @@ class ProductModel(Base):
     manufacturer_id: Mapped[str] = mapped_column(
         ForeignKey("manufacturers.manufacturer_id"), nullable=False
     )
-    use_description: Mapped[str] = mapped_column(String, nullable=False)
-    use_restriction: Mapped[str] = mapped_column(String, nullable=False)
+    use_description: Mapped[str | None] = mapped_column(String, nullable=True)
+    use_restriction: Mapped[str | None] = mapped_column(String, nullable=True)
     usage_status: Mapped[ProductUsageStatus] = mapped_column(
         enum_column_type(ProductUsageStatus, "product_usage_status_values"),
         nullable=False,
@@ -159,8 +159,8 @@ class ProductHistoryModel(Base):
         enum_column_type(ProductUsageStatus, "product_usage_status_values"),
         nullable=False,
     )
-    use_description: Mapped[str] = mapped_column(String, nullable=False)
-    use_restriction: Mapped[str] = mapped_column(String, nullable=False)
+    use_description: Mapped[str | None] = mapped_column(String, nullable=True)
+    use_restriction: Mapped[str | None] = mapped_column(String, nullable=True)
     waste_type: Mapped[str | None] = mapped_column(String, nullable=True)
     waste_code: Mapped[str | None] = mapped_column(String, nullable=True)
     changed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

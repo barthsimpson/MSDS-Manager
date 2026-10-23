@@ -14,6 +14,9 @@ class BhpEvidenceValidatorPort(Protocol):
 
 
 class BhpDecisionRepositoryPort(Protocol):
+    def require_safety_enrichment(self, product_id: str, sds_id: str) -> None:
+        """Reject until CURRENT SDS has Safety and PRODUCT has administrative data."""
+
     def register(
         self, data: RegisterBhpDecisionInput
     ) -> RegisterBhpDecisionResult:

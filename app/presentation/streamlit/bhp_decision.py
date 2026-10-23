@@ -128,6 +128,10 @@ def render_bhp_decision(composition: ShellComposition) -> None:
     with sds_metadata:
         st.text(f"Rewizja SDS: {product.sds_revision or 'Brak danych'}")
         st.text(f"Data wydania / rewizji SDS: {product.sds_issue_date or 'Brak danych'}")
+    if product.safety_enrichment_pending:
+        st.warning("Dane bezpieczeństwa SDS nie zostały jeszcze uzupełnione. Najpierw wykonaj analizę bezpieczeństwa SDS.")
+    if product.administrative_data_pending:
+        st.warning("Uzupełnij opis zastosowania i ograniczenia produktu przed decyzją BHP.")
     evidence_files = composition.list_bhp_evidence()
     _render_current_decision(composition, product.sds_id)
     _render_history(composition, product.sds_id)
@@ -164,7 +168,8 @@ def render_bhp_decision(composition: ShellComposition) -> None:
         key="bhp-decision-status",
     )
     notes = st.text_area("Uwagi", key="bhp-notes")
-    if st.button("Zapisz decyzję", key="save-bhp-decision"):
+    if st.button("Zapisz decyzję", key="save-bhp-decision",
+                 disabled=(product.safety_enrichment_pending or product.administrative_data_pending)):
         if mode == "Wybierz istniejący dowód" and selected_evidence is None:
             st.error("Wybierz dowód decyzji.")
             return

@@ -38,6 +38,8 @@ class BhpDecisionProduct:
     sds_filename: str
     sds_issue_date: object | None
     sds_revision: str | None
+    safety_enrichment_pending: bool = False
+    administrative_data_pending: bool = False
 
 
 @dataclass(frozen=True, slots=True)

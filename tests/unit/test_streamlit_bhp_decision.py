@@ -121,6 +121,15 @@ def test_bhp_decision_approved_passes_notes_and_shows_active() -> None:
     assert [item.value for item in app.success] == ["Decyzja BHP została zapisana."]
 
 
+def test_stage1_sds_disables_final_bhp_decision() -> None:
+    composition = FakeComposition()
+    composition.products = [replace(composition.products[0], safety_enrichment_pending=True)]
+    app = _app(composition).run()
+    assert app.button(key="save-bhp-decision").disabled
+    assert any("Dane bezpieczeństwa SDS" in item.value for item in app.warning)
+    assert composition.registered == []
+
+
 def test_bhp_decision_rejected_shows_rejected() -> None:
     composition = FakeComposition()
     app = _app(composition).run()

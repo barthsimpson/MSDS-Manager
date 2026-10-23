@@ -16,8 +16,8 @@ class SupervisoryProductRow:
     manufacturer_name: str
     manufacturer_product_code: str | None
     usage_status: ProductUsageStatus
-    use_description: str
-    use_restriction: str
+    use_description: str | None
+    use_restriction: str | None
     usage_location_name: str | None
     peak_quantity_value: Decimal | None
     peak_quantity_unit: str | None

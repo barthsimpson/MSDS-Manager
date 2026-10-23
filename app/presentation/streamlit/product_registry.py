@@ -396,19 +396,19 @@ def _render_details(
     admin_left, admin_right = st.columns(2)
     with admin_left:
         _card_fields((
-            ("Opis użycia", details.use_description),
+            ("Opis użycia", _optional_text(details.use_description)),
             ("Typ odpadu", _optional_text(details.waste_type)),
         ))
     with admin_right:
         _card_fields((
-            ("Ograniczenia użycia", details.use_restriction),
+            ("Ograniczenia użycia", _optional_text(details.use_restriction)),
             ("Kod odpadu", _optional_text(details.waste_code)),
         ))
     if not st.session_state.get(admin_key):
         return
     with st.container(border=True, key=f"admin-editor-{details.product_id}"):
-        use_description = st.text_input("Opis użycia", details.use_description)
-        use_restriction = st.text_input("Ograniczenia użycia", details.use_restriction)
+        use_description = st.text_input("Opis użycia", details.use_description or "")
+        use_restriction = st.text_input("Ograniczenia użycia", details.use_restriction or "")
         waste_type = st.text_input("Typ odpadu", details.waste_type or "")
         waste_code = st.text_input("Kod odpadu", details.waste_code or "")
         save_admin, cancel_admin = st.columns(2, gap="small")

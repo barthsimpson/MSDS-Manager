@@ -55,7 +55,7 @@ def test_alucynk_reference_dry_run(sample):
     assert plan.product_resolution.status == "CREATE_CANDIDATE"
     assert plan.product_resolution.conditional_on_manufacturer
     assert plan.required_manual_inputs == ("use_description", "use_restriction")
-    assert "INCOMPLETE_SAFETY_DATA" in plan.blockers
+    assert "INCOMPLETE_SAFETY_DATA" not in plan.blockers
     assert plan.commit_readiness == "NOT_READY"
     assert not any(call[0] == "product" for call in read.calls)
 
@@ -163,7 +163,8 @@ def test_partial_safety_does_not_become_no_data(sample):
     safety["carcinogenicity"] = {"domain_value": None, "state": "NOT_FOUND", "evidence": []}
     plan, = PlanEvidenceJsonImport(IdentityRead()).execute(sample)
     assert plan.validation_status == "VALID"
-    assert "INCOMPLETE_SAFETY_DATA" in plan.blockers
+    assert "INCOMPLETE_SAFETY_DATA" not in plan.blockers
+    assert "SAFETY_DATA_DEFERRED_TO_STAGE_2" in plan.warnings
     assert plan.commit_readiness == "NOT_READY"
 
 

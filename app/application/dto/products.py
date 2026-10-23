@@ -14,8 +14,8 @@ class ProductListItem:
     manufacturer_id: str
     manufacturer_name: str
     usage_status: ProductUsageStatus
-    use_description: str
-    use_restriction: str
+    use_description: str | None
+    use_restriction: str | None
     waste_type: str | None
     waste_code: str | None
 

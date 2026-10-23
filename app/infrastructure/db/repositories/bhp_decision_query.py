@@ -9,6 +9,7 @@ from app.infrastructure.db.models import (
     DecisionEvidenceModel,
     ManufacturerModel,
     ProductModel,
+    SafetyProfileModel,
     SdsDocumentModel,
 )
 
@@ -19,9 +20,10 @@ class SqlAlchemyBhpDecisionQuery:
 
     def list_products(self) -> tuple[BhpDecisionProduct, ...]:
         rows = self._session.execute(
-            select(ProductModel, ManufacturerModel, SdsDocumentModel)
+            select(ProductModel, ManufacturerModel, SdsDocumentModel, SafetyProfileModel.sds_id)
             .join(ManufacturerModel, ProductModel.manufacturer_id == ManufacturerModel.manufacturer_id)
             .join(SdsDocumentModel, SdsDocumentModel.product_id == ProductModel.product_id)
+            .outerjoin(SafetyProfileModel, SafetyProfileModel.sds_id == SdsDocumentModel.sds_id)
             .where(SdsDocumentModel.document_status == "CURRENT")
             .order_by(ProductModel.product_name, ProductModel.product_id)
         ).all()
@@ -36,8 +38,11 @@ class SqlAlchemyBhpDecisionQuery:
                 sds_filename=sds.original_filename,
                 sds_issue_date=sds.issue_date,
                 sds_revision=sds.revision,
+                safety_enrichment_pending=profile_id is None,
+                administrative_data_pending=(product.use_description is None
+                                             or product.use_restriction is None),
             )
-            for product, manufacturer, sds in rows
+            for product, manufacturer, sds, profile_id in rows
         )
 
     def get_current_decision(self, sds_id: str) -> CurrentBhpDecision | None:
