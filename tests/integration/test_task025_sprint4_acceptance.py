@@ -25,12 +25,15 @@ from app.infrastructure.db.models import (
     ManufacturerModel,
     ProductHistoryModel,
     ProductModel,
+    SafetyProfileModel,
     SdsDocumentModel,
 )
 from app.infrastructure.db.repositories import SqlAlchemyBhpDecisionRepository
 from app.infrastructure.db.session import create_engine_from_settings, create_session_factory
 from app.infrastructure.filesystem.bhp_evidence_validator import BhpEvidenceValidator
 from app.presentation.streamlit.composition import ShellComposition
+from tests.integration.safety_fixtures import safety_profile
+
 
 
 @pytest.fixture(scope="module")
@@ -94,6 +97,7 @@ def _seed(session_factory: sessionmaker[Session], suffix: str) -> tuple[str, str
                     file_status=FileAvailabilityStatus.AVAILABLE,
                 )
             )
+        session.add(safety_profile(current_sds_id))
     return manufacturer_id, product_id, current_sds_id, archived_sds_id
 
 
@@ -122,6 +126,9 @@ def _cleanup(
             delete(ProductHistoryModel).where(
                 ProductHistoryModel.product_id == product_id
             )
+        )
+        session.execute(
+            delete(SafetyProfileModel).where(SafetyProfileModel.sds_id.in_(sds_ids))
         )
         session.execute(
             delete(SdsDocumentModel).where(SdsDocumentModel.sds_id.in_(sds_ids))
