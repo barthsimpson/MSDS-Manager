@@ -17,13 +17,15 @@ from app.domain.enums import (
 from app.infrastructure.config import load_settings
 from app.infrastructure.db.models import (
     BhpDecisionModel, DecisionEvidenceModel, ManufacturerModel, ProductHistoryModel,
-    ProductModel, SdsDocumentModel,
+    ProductModel, SafetyProfileModel, SdsDocumentModel,
 )
 from app.infrastructure.db.repositories.bhp_decision import SqlAlchemyBhpDecisionRepository
 from app.infrastructure.db.session import create_engine_from_settings, create_session_factory
 from app.infrastructure.db.transactions import TransactionExecutor
 from app.infrastructure.filesystem.bhp_evidence_storage import BhpEvidenceStorage
 from app.presentation.streamlit.composition import ShellComposition
+from tests.integration.safety_fixtures import safety_profile
+
 
 
 @pytest.fixture
@@ -57,6 +59,7 @@ def _seed(factory: sessionmaker[Session]) -> tuple[str, str]:
             registered_at=datetime.now(timezone.utc),
             file_status=FileAvailabilityStatus.AVAILABLE,
         ))
+        session.add(safety_profile(sds_id))
     return product_id, sds_id
 
 
@@ -77,6 +80,7 @@ def scope_ids(session_factory):
                     DecisionEvidenceModel.evidence_id.in_(evidence_ids)
                 ))
             session.execute(delete(ProductHistoryModel).where(ProductHistoryModel.product_id == product_id))
+            session.execute(delete(SafetyProfileModel).where(SafetyProfileModel.sds_id == sds_id))
             session.execute(delete(SdsDocumentModel).where(SdsDocumentModel.sds_id == sds_id))
             session.execute(delete(ProductModel).where(ProductModel.product_id == product_id))
             session.execute(delete(ManufacturerModel).where(
