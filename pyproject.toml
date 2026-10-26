@@ -6,14 +6,19 @@ build-backend = "setuptools.build_meta"
 name = "msds-manager"
 version = "0.1.0"
 description = "MSDS Manager bootstrap project"
+requires-python = ">=3.12"
 dependencies = [
     "SQLAlchemy>=2,<3",
     "alembic",
     "psycopg",
     "pypdf",
     "cryptography>=3.1",
-    "pytest",
     "streamlit",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
 ]
 
 [tool.setuptools.packages.find]

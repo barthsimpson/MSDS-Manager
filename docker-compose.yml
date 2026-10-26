@@ -15,7 +15,9 @@ services:
       retries: 10
 
   app:
-    build: .
+    build:
+      context: .
+      target: runtime
     restart: unless-stopped
     depends_on:
       db:
@@ -44,6 +46,8 @@ services:
             - "**/__pycache__/"
         - action: rebuild
           path: ./pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
 
 volumes:
   pgdata:

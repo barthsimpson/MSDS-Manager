@@ -23,7 +23,9 @@ services:
       retries: 20
 
   test:
-    build: .
+    build:
+      context: .
+      target: test
     depends_on:
       test-db:
         condition: service_healthy

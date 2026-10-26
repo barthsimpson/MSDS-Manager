@@ -83,8 +83,8 @@ Polecenie działa na pierwszym planie i pokazuje logi aplikacji. Dopóki działa
 
 - zmiana w `app/` lub `migrations/` → pliki trafiają do kontenera, aplikacja
   restartuje się po kilku sekundach (migracje wykonują się przy starcie),
-- zmiana w `pyproject.toml` (np. nowa biblioteka) → obraz przebudowuje się
-  automatycznie.
+- zmiana w `pyproject.toml` lub `uv.lock` (np. nowa biblioteka) → obraz
+  przebudowuje się automatycznie.
 
 `Ctrl+C` zatrzymuje aplikację i bazę. Dane bazy zostają w wolumenie.
 
@@ -126,14 +126,23 @@ inny, zbuduj obraz z `docker compose build --build-arg APP_UID=$(id -u)`.
 
 ### Wymagania
 
-- Python
+- Python 3.12 lub nowszy
 - PostgreSQL uruchomiony natywnie w Windows
 
 ### Przygotowanie środowiska
 
+Z [uv](https://docs.astral.sh/uv/) (te same wersje bibliotek co w Dockerze, z `uv.lock`):
+
+```powershell
+uv sync
+```
+
+Albo samym pip (pip 25.1+, wersje bibliotek nie są wtedy przypięte):
+
 ```powershell
 py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e . --group dev
 ```
 
 Utwórz lokalny plik konfiguracji na podstawie przykładu:
@@ -174,6 +183,27 @@ Aplikacja nie tworzy katalogów SDS ani BHP — muszą istnieć przed startem.
 `check_environment.py` wykonuje odczytowy test `SELECT 1` i sprawdza istnienie
 obu skonfigurowanych katalogów. `smoke_application.py` wykonuje minimalny
 odczyt przez warstwę aplikacji.
+
+## Zależności
+
+Wersje wszystkich bibliotek są przypięte w `uv.lock`. Obraz Dockera instaluje
+dokładnie te wersje (`uv sync --frozen`); build przerywa się, gdy lock nie
+pasuje do `pyproject.toml`.
+
+- `dependencies` w `pyproject.toml`: biblioteki aplikacji (trafiają do obrazu),
+- `[dependency-groups] dev`: narzędzia deweloperskie, np. pytest (tylko obraz testowy).
+
+Dodanie lub aktualizacja biblioteki (bez instalowania uv na hoście):
+
+```bash
+# po zmianie pyproject.toml:
+docker run --rm -v "$PWD":/w -w /w -u "$(id -u):$(id -g)" -e UV_CACHE_DIR=/tmp/uv \
+  ghcr.io/astral-sh/uv:python3.12-bookworm-slim uv lock
+# aktualizacja wszystkich wersji: to samo z `uv lock --upgrade`
+```
+
+Z zainstalowanym uv wystarczy `uv add <pakiet>`, `uv lock` albo `uv lock --upgrade`.
+Zmieniony `uv.lock` commituj razem z `pyproject.toml`.
 
 ## Testy
 
