@@ -33,7 +33,7 @@ from app.application.dto import (
     AnalyticsFilters,
     ProductLocationAnalyticsRow,
 )
-from app.application.exceptions import EntityNotFoundError
+from app.application.exceptions import EntityNotFoundError, SupervisoryReadError
 from app.application.dto.physical_review import PhysicalReviewDetails, PhysicalReviewSummary
 from app.application.use_cases.physical_review import (
     CreatePhysicalReview, DiscardPhysicalReviewDraft, FinalizePhysicalReview,
