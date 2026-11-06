@@ -12,6 +12,7 @@ from app.infrastructure.db.models import (
     SafetyProfileModel,
     SdsDocumentModel,
 )
+from app.domain.enums import SdsDocumentStatus
 
 
 class SqlAlchemyBhpDecisionQuery:
@@ -49,9 +50,11 @@ class SqlAlchemyBhpDecisionQuery:
         row = self._session.execute(
             select(BhpDecisionModel, DecisionEvidenceModel)
             .join(DecisionEvidenceModel, BhpDecisionModel.evidence_id == DecisionEvidenceModel.evidence_id)
+            .join(SdsDocumentModel, SdsDocumentModel.sds_id == BhpDecisionModel.sds_id)
             .where(
                 BhpDecisionModel.sds_id == sds_id,
                 BhpDecisionModel.record_status == "CURRENT",
+                SdsDocumentModel.document_status == SdsDocumentStatus.CURRENT,
             )
         ).one_or_none()
         if row is None:

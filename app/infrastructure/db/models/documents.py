@@ -5,13 +5,16 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from sqlalchemy import (
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
     String,
+    Text,
     UniqueConstraint,
+    Uuid,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -140,6 +143,34 @@ class BhpDecisionModel(Base):
     evidence: Mapped[DecisionEvidenceModel] = relationship(
         back_populates="decision", uselist=False
     )
+
+
+class SdsInvalidationModel(Base):
+    __tablename__ = "sds_invalidation"
+    __table_args__ = (
+        UniqueConstraint("invalidated_sds_id", name="uq_sds_invalidation_sds"),
+        CheckConstraint(
+            "invalidated_from_status IN ('CURRENT', 'ARCHIVED')",
+            name="ck_sds_invalidation_from_status",
+        ),
+        CheckConstraint("length(btrim(reason)) > 0", name="ck_sds_invalidation_reason"),
+        CheckConstraint(
+            "restored_sds_id IS NULL OR restored_sds_id <> invalidated_sds_id",
+            name="ck_sds_invalidation_distinct_sds",
+        ),
+    )
+
+    invalidation_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
+    product_id: Mapped[str] = mapped_column(ForeignKey("products.product_id"), nullable=False)
+    invalidated_sds_id: Mapped[str] = mapped_column(
+        ForeignKey("sds_documents.sds_id"), nullable=False
+    )
+    invalidated_from_status: Mapped[str] = mapped_column(String, nullable=False)
+    restored_sds_id: Mapped[str | None] = mapped_column(
+        ForeignKey("sds_documents.sds_id"), nullable=True
+    )
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    invalidated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 from .catalog import ProductModel  # noqa: E402

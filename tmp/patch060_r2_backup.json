@@ -1,0 +1,11 @@
+{
+  "database": "msds_manager",
+  "backup_path": "C:\\Users\\bartosz.murawski\\Projects\\MSDS-Manager-backups\\msds_manager_patch060_r2_20261103T135733Z_4e4876be.dump",
+  "created_utc": "2026-11-03T13:57:34.307356+00:00",
+  "size_bytes": 56634,
+  "sha256": "30b2d7190b2e3fbcc2eb06bf9b901272c01108c6388ab4feace3f7447766a6f3",
+  "pg_dump_exit": 0,
+  "pg_restore_list_exit": 0,
+  "pg_restore_list_entries": 88,
+  "required_tables_in_archive": true
+}

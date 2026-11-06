@@ -34,6 +34,7 @@ class UnitStatus(StrEnum):
 class SdsDocumentStatus(StrEnum):
     CURRENT = "CURRENT"
     ARCHIVED = "ARCHIVED"
+    INVALIDATED = "INVALIDATED"
 
 
 class FileAvailabilityStatus(StrEnum):

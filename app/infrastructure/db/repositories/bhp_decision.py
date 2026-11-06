@@ -118,11 +118,15 @@ class SqlAlchemyBhpDecisionRepository(BhpDecisionRepositoryPort):
         self._get_scope(product_id, sds_id)
 
     def _get_scope(self, product_id: str, sds_id: str):
-        product = self._session.get(ProductModel, product_id)
+        product = self._session.scalar(
+            select(ProductModel).where(ProductModel.product_id == product_id).with_for_update()
+        )
         if product is None:
             raise ValueError(f"Product not found: {product_id}")
 
-        sds = self._session.get(SdsDocumentModel, sds_id)
+        sds = self._session.scalar(
+            select(SdsDocumentModel).where(SdsDocumentModel.sds_id == sds_id).with_for_update()
+        )
         if sds is None:
             raise ValueError(f"SDS not found: {sds_id}")
         if sds.product_id != product_id:

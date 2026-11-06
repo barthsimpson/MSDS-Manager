@@ -220,6 +220,7 @@ def _classify_identity(item: BatchItem, session: Session, selected_id: str,
 def preflight(
     manifest_path: Path, json_dir: Path, source_root: Path,
     decision: BatchManufacturerDecision, session: Session, sds_root: Path,
+    manifest_ids: set[str] | None = None,
 ) -> list[BatchItem]:
     try:
         manifest = json.loads(manifest_path.read_bytes())
@@ -228,7 +229,9 @@ def preflight(
     if not isinstance(manifest, dict) or manifest.get("batch") != decision.batch \
             or not isinstance(manifest.get("files"), list):
         raise ImportPlanError("MANIFEST_DECISION_MISMATCH")
-    entries = manifest["files"]
+    entries = [entry for entry in manifest["files"]
+               if manifest_ids is None or isinstance(entry, dict)
+               and entry.get("id") in manifest_ids]
     read = SqlAlchemyEvidenceIdentityRead(session)
     manufacturer_rows = read.manufacturers_named(decision.existing_manufacturer_name)
     selected = manufacturer_rows[0] if len(manufacturer_rows) == 1 else None

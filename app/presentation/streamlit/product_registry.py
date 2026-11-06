@@ -8,6 +8,8 @@ import streamlit as st
 
 from app.application.dto import (
     AddSdsRevisionInput,
+    InvalidateSdsInput,
+    SdsHistoryItem,
     AssignProductUsageLocationInput,
     AssignLegacyUsageLocationCodeInput,
     CreateUsageLocationInput,
@@ -22,7 +24,7 @@ from app.application.dto import (
 )
 from app.application.exceptions import SupervisoryReadError
 from app.application.use_cases.import_sds import SdsImportCleanupError
-from app.domain.enums import UsageLocationStatus
+from app.domain.enums import SdsDocumentStatus, UsageLocationStatus
 from app.domain.models import UnitOfMeasure
 from app.infrastructure.db.transactions import PersistenceError
 from app.presentation.streamlit.composition import (
@@ -33,6 +35,8 @@ from app.presentation.streamlit.composition import (
 
 MISSING_VALUE = "Brak danych"
 PRODUCT_CARD_KEY = "product-card-id"
+INVALIDATION_TARGET_KEY = "sds-invalidation-target"
+INVALIDATION_SUCCESS_KEY = "sds-invalidation-success"
 PRODUCT_CARD_STYLE = """
 <style>
 .product-card-title {
@@ -139,6 +143,8 @@ STATUS_LABELS = {
     "REJECTED": "Odrzucony",
     "INACTIVE": "Nieaktywny",
 }
+WITHDRAWN_NO_CURRENT = "🔴 ⚠️ Brak bieżącego SDS — wycofano bieżący dokument"
+WITHDRAWN_SDS = "🔴 ⚠️ Wycofany / błędna rejestracja"
 
 
 def _optional_text(value: str | Decimal | None) -> str:
@@ -171,9 +177,11 @@ def _status_label(status) -> str:
     return STATUS_LABELS.get(status.value, status.value)
 
 
-def _sds_label(row: SupervisoryProductRow | None) -> str:
+def _sds_label(row: SupervisoryProductRow | None, withdrawn: bool = False) -> str:
     if row is None:
         return "—"
+    if withdrawn:
+        return WITHDRAWN_SDS
     if row.current_sds_id is None:
         return "Brak CURRENT SDS"
     return "CURRENT" if row.current_sds_file_available else "Brak pliku SDS"
@@ -190,13 +198,34 @@ def _bhp_label(row: SupervisoryProductRow | None) -> str:
     }.get(row.current_bhp_decision_status.value, row.current_bhp_decision_status.value)
 
 
-def _registry_row(product: ProductListItem, row: SupervisoryProductRow | None) -> dict[str, str]:
+def _withdrawn_without_current(
+    row: SupervisoryProductRow | None, history: tuple[SdsHistoryItem, ...]
+) -> bool:
+    return (
+        row is not None
+        and row.current_sds_id is None
+        and not any(item.document_status is SdsDocumentStatus.CURRENT for item in history)
+        and any(
+            item.document_status is SdsDocumentStatus.INVALIDATED
+            and item.product_id == row.product_id
+            and item.invalidated_at is not None
+            and item.invalidated_from_status == SdsDocumentStatus.CURRENT.value
+            and item.restored_sds_id is None
+            for item in history
+        )
+    )
+
+
+def _registry_row(
+    product: ProductListItem, row: SupervisoryProductRow | None,
+    withdrawn: bool = False,
+) -> dict[str, str]:
     return {
         "Produkt": product.product_name,
         "Kod producenta": _optional_text(product.manufacturer_product_code),
         "Producent": product.manufacturer_name,
-        "Status": _status_label(product.usage_status),
-        "SDS": _sds_label(row),
+        "Status": WITHDRAWN_NO_CURRENT if withdrawn else _status_label(product.usage_status),
+        "SDS": _sds_label(row, withdrawn),
         "Rewizja SDS": (
             row.current_sds_revision or "—"
             if row is not None and row.current_sds_id is not None else "—"
@@ -344,7 +373,8 @@ def _current_sds_download(composition, product_id: str, current_sds):
 
 
 def _render_details(
-    composition, details: ProductDetails, row: SupervisoryProductRow | None
+    composition, details: ProductDetails, row: SupervisoryProductRow | None,
+    withdrawn: bool = False,
 ) -> None:
     identity_column, sds_column = st.columns(2)
     with identity_column:
@@ -359,7 +389,7 @@ def _render_details(
         with st.container(border=True):
             current_sds = row if row is not None and row.current_sds_id is not None else None
             sds_fields = [
-                ("Stan SDS", _sds_label(row)),
+                ("Stan SDS", _sds_label(row, withdrawn)),
                 ("Rewizja SDS", current_sds.current_sds_revision or MISSING_VALUE if current_sds else MISSING_VALUE),
                 ("Data wydania / rewizji SDS", current_sds.current_sds_issue_date or MISSING_VALUE if current_sds else MISSING_VALUE),
             ]
@@ -670,23 +700,36 @@ def _render_product_card(
         st.rerun()
     try:
         details = composition.get_product_details(product_id)
+        sds_history = composition.list_sds_history(product_id)
     except ShellInitializationError as error:
         st.error(str(error))
+        return
+    except Exception:
+        st.error("Nie udało się odczytać historii SDS.")
         return
 
     row = supervisory_rows.get(product_id)
     current_sds = row if row is not None and row.current_sds_id is not None else None
+    withdrawn = _withdrawn_without_current(row, sds_history)
+    if st.session_state.pop(INVALIDATION_SUCCESS_KEY, False):
+        st.success("SDS został wycofany jako błędnie zarejestrowany. Dokument i historia zostały zachowane.")
     revision = current_sds.current_sds_revision or MISSING_VALUE if current_sds else MISSING_VALUE
+    status_text = (
+        f"Status: {WITHDRAWN_NO_CURRENT} · Status użytkowania: {_status_label(details.usage_status)}"
+        if withdrawn else f"Status użytkowania: {_status_label(details.usage_status)}"
+    )
     st.markdown(
         f'<div class="product-card-title">{escape(details.product_name)}</div>'
         '<div class="product-card-meta">'
         f'{escape(details.manufacturer_name)} · Kod producenta: '
         f'{escape(_optional_text(details.manufacturer_product_code))}'
         '</div><div class="product-card-meta">'
-        f'Status użytkowania: {escape(_status_label(details.usage_status))} · '
-        f'SDS: {escape(_sds_label(row))} · Rewizja SDS: {escape(str(revision))}'
+        f'{escape(status_text)} · '
+        f'SDS: {escape(_sds_label(row, withdrawn))} · Rewizja SDS: {escape(str(revision))}'
         '</div>', unsafe_allow_html=True,
     )
+    if withdrawn:
+        st.error(WITHDRAWN_NO_CURRENT)
     current_file, download_status = _current_sds_download(composition, product_id, current_sds)
     with st.container(key="product-card-actions"):
         action_columns = st.columns(5 if details.manufacturer_product_code is None else 4, gap="small")
@@ -724,7 +767,146 @@ def _render_product_card(
     _render_code_completion(composition, details, show_button=False)
     _render_identity_correction(composition, details, show_button=False)
     _render_revision(composition, details, row, show_button=False)
-    _render_details(composition, details, row)
+    _render_sds_history(composition, details, sds_history, current_sds.current_sds_id if current_sds else None)
+    _render_details(composition, details, row, withdrawn)
+
+
+def _sds_history_status(item: SdsHistoryItem) -> str:
+    return {
+        SdsDocumentStatus.CURRENT: "CURRENT",
+        SdsDocumentStatus.ARCHIVED: "ARCHIVED",
+        SdsDocumentStatus.INVALIDATED: "Wycofany / błędna rejestracja",
+    }[item.document_status]
+
+
+def _render_sds_history(
+    composition: ShellComposition, details: ProductDetails,
+    history: tuple[SdsHistoryItem, ...], current_sds_id: str | None,
+) -> None:
+    _card_section("Historia SDS")
+    if not history:
+        st.info("Brak zarejestrowanych SDS.")
+        return
+    archived = tuple(item for item in history if item.document_status is SdsDocumentStatus.ARCHIVED)
+    for item in history:
+        with st.container(border=True):
+            main, actions = st.columns([4, 1])
+            with main:
+                marker = "🔴 ⚠️ " if item.document_status is SdsDocumentStatus.INVALIDATED else ""
+                st.write(f"**{item.original_filename}** · {marker}{_sds_history_status(item)}")
+                st.caption(
+                    f"Rewizja: {item.revision or 'Brak danych'} · "
+                    f"Data wydania: {item.issue_date or 'Brak danych'} · "
+                    f"Zarejestrowano: {item.registered_at}"
+                )
+                if item.document_status is SdsDocumentStatus.INVALIDATED:
+                    st.caption(f"ID SDS: {item.sds_id}")
+                    st.caption(f"Wycofano: {item.invalidated_at} · Powód: {item.invalidation_reason}")
+                    restored = next(
+                        (candidate.original_filename for candidate in history
+                         if candidate.sds_id == item.restored_sds_id), None
+                    )
+                    st.caption(
+                        f"Poprzedni status: {item.invalidated_from_status} · "
+                        f"Przywrócony SDS: {restored or 'Brak'}"
+                    )
+                    st.caption("Przechowywanie: archiwum SDS tego produktu; dokument zachowany w dotychczasowej lokalizacji")
+                    st.caption("Dostęp: historyczny PDF — tylko do wglądu/pobrania; nie jest bieżącym SDS produktu")
+            with actions:
+                if st.button("Otwórz PDF", key=f"open-history-pdf-{item.sds_id}"):
+                    st.session_state["sds-history-pdf"] = item.sds_id
+                if item.document_status is not SdsDocumentStatus.INVALIDATED:
+                    with st.popover("Więcej akcji", key=f"sds-more-actions-{item.sds_id}"):
+                        if st.button(
+                            "Wycofaj błędnie zarejestrowany SDS",
+                            key=f"invalidate-sds-{item.sds_id}",
+                        ):
+                            st.session_state[INVALIDATION_TARGET_KEY] = (
+                                details.product_id, item.sds_id,
+                                item.document_status.value, current_sds_id,
+                            )
+        if st.session_state.get("sds-history-pdf") == item.sds_id:
+            try:
+                content = composition.read_sds_history_file(item.relative_path)
+                st.download_button(
+                    "Pobierz historyczny PDF", content,
+                    file_name=item.original_filename, mime="application/pdf",
+                    key=f"history-pdf-download-{item.sds_id}",
+                )
+            except (OSError, ValueError) as error:
+                st.warning(f"PDF jest niedostępny: {error}")
+    target_snapshot = st.session_state.get(INVALIDATION_TARGET_KEY)
+    if not target_snapshot or target_snapshot[0] != details.product_id:
+        return
+    target = next((item for item in history if item.sds_id == target_snapshot[1]), None)
+    if target is None or target.document_status is SdsDocumentStatus.INVALIDATED:
+        st.warning("Stan danych zmienił się. Odśwież widok i ponów operację.")
+        return
+    with st.container(border=True):
+        st.subheader("Wycofaj błędnie zarejestrowany SDS")
+        _card_fields((
+            ("Produkt", details.product_name), ("Producent", details.manufacturer_name),
+            ("PDF", target.original_filename),
+            ("Rewizja", target.revision or MISSING_VALUE),
+            ("Status", target_snapshot[2]),
+        ))
+        if target_snapshot[2] == "CURRENT":
+            st.warning(
+                "Wycofanie bieżącego SDS przeniesie produkt do PENDING_APPROVAL. "
+                "Dla przywróconego SDS będzie wymagana nowa decyzja BHP."
+            )
+        reason = st.text_area("Powód wycofania *", key=f"invalidation-reason-{target.sds_id}")
+        mode = "ARCHIVED_ONLY"
+        restored_id = None
+        if target_snapshot[2] == "CURRENT":
+            mode = st.selectbox(
+                "Wariant wycofania *",
+                (None, "RESTORE_ARCHIVED", "NO_CURRENT"),
+                format_func=lambda value: {
+                    None: "Wybierz wariant",
+                    "RESTORE_ARCHIVED": "Przywróć wybrany ARCHIVED SDS",
+                    "NO_CURRENT": "Nie przywracaj wcześniejszego SDS",
+                }[value],
+                key=f"invalidation-mode-{target.sds_id}",
+            )
+            if mode == "RESTORE_ARCHIVED":
+                restored_id = st.selectbox(
+                    "SDS do przywrócenia *", (None, *(item.sds_id for item in archived)),
+                    format_func=lambda value: "Wybierz SDS" if value is None else next(
+                        f"{item.original_filename} · {item.revision or 'Brak rewizji'} · {item.issue_date or 'Brak daty'}"
+                        for item in archived if item.sds_id == value
+                    ),
+                    key=f"invalidation-replacement-{target.sds_id}",
+                )
+        confirmed = st.checkbox(
+            "Potwierdzam wycofanie tego SDS jako błędnie zarejestrowanego.",
+            key=f"invalidation-confirm-{target.sds_id}",
+        )
+        ready = bool(reason and reason.strip() and confirmed and mode and
+                     (mode != "RESTORE_ARCHIVED" or restored_id))
+        save, cancel = st.columns(2)
+        if save.button("Wycofaj SDS", disabled=not ready, key=f"invalidation-save-{target.sds_id}"):
+            try:
+                composition.invalidate_sds(InvalidateSdsInput(
+                    product_id=details.product_id,
+                    invalidated_sds_id=target.sds_id,
+                    expected_status=SdsDocumentStatus(target_snapshot[2]),
+                    expected_current_sds_id=target_snapshot[3],
+                    mode=mode,
+                    reason=reason,
+                    restored_sds_id=restored_id,
+                ))
+                st.session_state.pop(INVALIDATION_TARGET_KEY, None)
+                st.session_state[INVALIDATION_SUCCESS_KEY] = True
+                st.rerun()
+            except (ValueError, PersistenceError, OSError) as error:
+                if "STALE_STATE" in str(error):
+                    st.error("Stan danych zmienił się. Odśwież widok i ponów operację.")
+                else:
+                    st.error(str(error))
+        if cancel.button("Anuluj", key=f"invalidation-cancel-{target.sds_id}"):
+            st.session_state.pop(INVALIDATION_TARGET_KEY, None)
+            st.rerun()
 
 
 def render_product_registry(composition: ShellComposition) -> None:
@@ -786,8 +968,22 @@ def render_product_registry(composition: ShellComposition) -> None:
         st.info("Brak produktów pasujących do wyszukiwania.")
         return
 
+    withdrawn_ids = set()
+    history_read_failed = False
+    for product in visible_products:
+        row = supervisory_rows.get(product.product_id)
+        if row is None or row.current_sds_id is not None:
+            continue
+        try:
+            if _withdrawn_without_current(row, composition.list_sds_history(product.product_id)):
+                withdrawn_ids.add(product.product_id)
+        except Exception:
+            history_read_failed = True
+    if history_read_failed:
+        st.warning("Nie udało się potwierdzić stanu historii SDS części produktów.")
     selection = st.dataframe(
-        [_registry_row(product, supervisory_rows.get(product.product_id)) for product in visible_products],
+        [_registry_row(product, supervisory_rows.get(product.product_id),
+                       product.product_id in withdrawn_ids) for product in visible_products],
         hide_index=True,
         use_container_width=True,
         on_select="rerun",

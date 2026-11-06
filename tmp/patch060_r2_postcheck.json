@@ -1,0 +1,42 @@
+{
+  "database": "msds_manager",
+  "revision": "e4c6f21a9d80",
+  "sds_invalidation_present": true,
+  "sds_invalidation_count": 0,
+  "existing_counts_unchanged": true,
+  "existing_counts": {
+    "bhp_decisions": 4,
+    "decision_evidence": 4,
+    "manufacturers": 6,
+    "physical_review_items": 3,
+    "physical_reviews": 2,
+    "product_history": 42,
+    "product_identity_changes": 2,
+    "product_usage_location_history": 3,
+    "product_usage_locations": 2,
+    "products": 36,
+    "safety_profiles": 7,
+    "sds_components": 6,
+    "sds_documents": 38,
+    "unit_of_measure": 5,
+    "usage_location_history": 0,
+    "usage_locations": 3
+  },
+  "missing_sds_product": 0,
+  "products_with_multiple_current_sds": 0,
+  "status_column_length": 11,
+  "status_constraint_has_invalidated": true,
+  "current_unique_index_unchanged": true,
+  "unvalidated_constraints": [],
+  "target_product_unchanged": true,
+  "history_count": 1,
+  "history_statuses": [
+    "CURRENT"
+  ],
+  "current_sds_id": "760c7058df7e4bb58337fc6501a1da51",
+  "current_revision": "5.0",
+  "pdf_within_configured_root": true,
+  "pdf_exists": true,
+  "pdf_size_bytes": 761136,
+  "invalidated_sds_count": 0
+}

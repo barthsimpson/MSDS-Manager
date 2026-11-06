@@ -114,6 +114,13 @@ class SqlAlchemySdsAcceptanceRepository(SdsAcceptanceRepositoryPort):
         self, product: ProductModel, data: AcceptSdsInput | AddSdsRevisionInput | Stage1SdsInput,
         *, include_safety: bool = True,
     ) -> str:
+        # Share the PRODUCT-first lock order with invalidation and BHP decisions.
+        with self._session.no_autoflush:
+            self._session.scalar(
+                select(ProductModel)
+                .where(ProductModel.product_id == product.product_id)
+                .with_for_update()
+            )
         now = datetime.now(timezone.utc)
         self._session.execute(
             update(SdsDocumentModel)

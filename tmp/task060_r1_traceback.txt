@@ -1,0 +1,114 @@
+Traceback (most recent call last):
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\psycopg\cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedTable: relacja "sds_invalidation" nie istnieje
+LINE 2: FROM sds_documents LEFT OUTER JOIN sds_invalidation ON sds_i...
+                                           ^
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\tmp\task060_r1_diagnose.py", line 54, in <module>
+    history = composition.list_sds_history(product["product_id"])
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\app\presentation\streamlit\composition.py", line 370, in list_sds_history
+    return SqlAlchemySdsInvalidationRepository(session).list_for_product(product_id)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\app\infrastructure\db\repositories\sds_invalidation.py", line 22, in list_for_product
+    rows = self._session.execute(
+           ~~~~~~~~~~~~~~~~~~~~~^
+        select(SdsDocumentModel, SdsInvalidationModel)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        .order_by(SdsDocumentModel.registered_at.desc(), SdsDocumentModel.sds_id)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).all()
+    ^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2373, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2271, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self,
+        ^^^^^
+    ...<4 lines>...
+        conn,
+        ^^^^^
+    )
+    ^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\orm\context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1421, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1643, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2365, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bartosz.murawski\Projects\MSDS-Manager\.venv\Lib\site-packages\psycopg\cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+sqlalchemy.exc.ProgrammingError: (psycopg.errors.UndefinedTable) relacja "sds_invalidation" nie istnieje
+LINE 2: FROM sds_documents LEFT OUTER JOIN sds_invalidation ON sds_i...
+                                           ^
+[SQL: SELECT sds_documents.sds_id, sds_documents.product_id, sds_documents.original_filename, sds_documents.relative_path, sds_documents.issue_date, sds_documents.revision, sds_documents.document_status, sds_documents.registered_at, sds_documents.file_status, sds_invalidation.invalidation_id, sds_invalidation.product_id AS product_id_1, sds_invalidation.invalidated_sds_id, sds_invalidation.invalidated_from_status, sds_invalidation.restored_sds_id, sds_invalidation.reason, sds_invalidation.invalidated_at 
+FROM sds_documents LEFT OUTER JOIN sds_invalidation ON sds_invalidation.invalidated_sds_id = sds_documents.sds_id 
+WHERE sds_documents.product_id = %(product_id_2)s::VARCHAR ORDER BY sds_documents.registered_at DESC, sds_documents.sds_id]
+[parameters: {'product_id_2': '8385e28101e6409c8110d33febbfdc86'}]
+(Background on this error at: https://sqlalche.me/e/20/f405)

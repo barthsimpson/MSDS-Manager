@@ -1,5 +1,5 @@
 from dataclasses import asdict, dataclass, replace
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 from uuid import NAMESPACE_URL, uuid5
@@ -11,9 +11,10 @@ from app.application.dto import (
     ProductDetails,
     ProductListItem,
     ProductUsageLocationDetails,
+    SdsHistoryItem,
     SupervisoryProductRow,
 )
-from app.domain.enums import BhpDecisionStatus, ProductUsageStatus, UnitCategory, UnitStatus, UsageLocationStatus
+from app.domain.enums import BhpDecisionStatus, ProductUsageStatus, SdsDocumentStatus, UnitCategory, UnitStatus, UsageLocationStatus
 from app.domain.models import UnitOfMeasure
 from app.presentation.streamlit import product_registry
 
@@ -24,6 +25,7 @@ class FakeComposition:
     details_by_id: dict[str, ProductDetails]
     selected_product_id: str
     requested_ids: list[str]
+    history_by_id: dict[str, tuple[SdsHistoryItem, ...]] | None = None
 
     def get_product_details(self, product_id: str) -> ProductDetails:
         self.requested_ids.append(product_id)
@@ -40,6 +42,9 @@ class FakeComposition:
 
     def list_sds_files(self):
         return ()
+
+    def list_sds_history(self, product_id: str):
+        return (self.history_by_id or {}).get(product_id, ())
 
 
 def make_product(product_id: str, manufacturer_name: str) -> ProductListItem:
@@ -294,6 +299,113 @@ def test_registry_search_and_sort_keep_table_usable() -> None:
     app.text_input(key="product-registry-search").set_value("Maker Z").run()
     assert app.dataframe[0].value["Produkt"].tolist() == ["Zeta"]
     assert app.exception == []
+
+
+def _r3_supervisory_row(product: ProductListItem, current_sds_id: str | None) -> SupervisoryProductRow:
+    return SupervisoryProductRow(
+        product_id=product.product_id, product_name=product.product_name,
+        manufacturer_name=product.manufacturer_name,
+        manufacturer_product_code=product.manufacturer_product_code,
+        usage_status=product.usage_status, use_description=product.use_description,
+        use_restriction=product.use_restriction, usage_location_name=None,
+        peak_quantity_value=None, peak_quantity_unit=None,
+        monthly_consumption_value=None, monthly_consumption_unit=None,
+        current_sds_id=current_sds_id,
+        current_sds_filename="liquid.pdf" if current_sds_id else None,
+        current_sds_issue_date=None, current_sds_revision=None,
+        current_sds_file_available=current_sds_id is not None,
+        current_bhp_decision_id=None, current_bhp_decision_status=None,
+        current_bhp_registered_at=None, current_bhp_notes=None,
+        current_bhp_evidence_relative_path=None,
+        current_bhp_evidence_available=False,
+    )
+
+
+def _r3_history(product_id: str, status: SdsDocumentStatus,
+                previous: str | None = "CURRENT", restored: str | None = None) -> SdsHistoryItem:
+    now = datetime(2026, 11, 6, 10, 0, tzinfo=timezone.utc)
+    return SdsHistoryItem(
+        sds_id="sds-withdrawn", product_id=product_id,
+        original_filename="TEST_DELETE_001.pdf", relative_path="history/test.pdf",
+        issue_date=None, revision=None, document_status=status,
+        registered_at=now, invalidated_at=now if status is SdsDocumentStatus.INVALIDATED else None,
+        invalidation_reason="Błędna rejestracja" if status is SdsDocumentStatus.INVALIDATED else None,
+        invalidated_from_status=previous if status is SdsDocumentStatus.INVALIDATED else None,
+        restored_sds_id=restored,
+    )
+
+
+def test_r3_withdrawn_product_list_card_history_and_pdf(monkeypatch: pytest.MonkeyPatch) -> None:
+    withdrawn = replace(make_product("withdrawn", "Maker"),
+                        product_name="XBRAKE CLEANER", usage_status=ProductUsageStatus.PENDING_APPROVAL)
+    liquid = replace(make_product("liquid", "Maker"),
+                     product_name="XBRAKE CLEANER liquid", usage_status=ProductUsageStatus.PENDING_APPROVAL)
+    plain = replace(make_product("plain", "Maker"),
+                    product_name="No SDS", usage_status=ProductUsageStatus.PENDING_APPROVAL)
+    composition = FakeComposition(
+        (withdrawn, liquid, plain),
+        {withdrawn.product_id: make_details(withdrawn)}, "", [],
+        {withdrawn.product_id: (_r3_history(withdrawn.product_id, SdsDocumentStatus.INVALIDATED),)},
+    )
+    rows = [_r3_supervisory_row(withdrawn, None),
+            _r3_supervisory_row(liquid, "liquid-current"),
+            _r3_supervisory_row(plain, None)]
+    monkeypatch.setattr(composition, "list_supervisory_products", lambda: rows)
+    reads = []
+    downloads = []
+    def read_pdf(path):
+        reads.append(path)
+        return b"%PDF-1.4\nfixture"
+    monkeypatch.setattr(composition, "read_sds_history_file", read_pdf, raising=False)
+    real_download = product_registry.st.download_button
+    def trace_download(label, *args, **kwargs):
+        downloads.append(label)
+        return real_download(label, *args, **kwargs)
+    monkeypatch.setattr(product_registry.st, "download_button", trace_download)
+
+    app = _app(composition).run()
+    assert app.exception == []
+    table = app.dataframe[0].value.set_index("Produkt")
+    assert table.loc["XBRAKE CLEANER", "Status"] == product_registry.WITHDRAWN_NO_CURRENT
+    assert table.loc["XBRAKE CLEANER", "SDS"] == product_registry.WITHDRAWN_SDS
+    assert table.loc["XBRAKE CLEANER", "BHP"] == "Brak decyzji"
+    assert table.loc["XBRAKE CLEANER liquid", "Status"] == "Oczekuje na BHP"
+    assert table.loc["XBRAKE CLEANER liquid", "SDS"] == "CURRENT"
+    assert table.loc["No SDS", "Status"] == "Oczekuje na BHP"
+    assert table.loc["No SDS", "SDS"] == "Brak CURRENT SDS"
+
+    app.session_state[product_registry.PRODUCT_CARD_KEY] = withdrawn.product_id
+    app.run()
+    assert app.exception == []
+    assert any(product_registry.WITHDRAWN_NO_CURRENT in item.value for item in app.markdown)
+    assert app.button(key="current-sds-download-withdrawn").disabled
+    assert any("TEST_DELETE_001.pdf" in item.value and "🔴 ⚠️" in item.value for item in app.markdown)
+    captions = "\n".join(item.value for item in app.caption)
+    for expected in ("ID SDS: sds-withdrawn", "Wycofano: 2026-11-06",
+                     "Powód: Błędna rejestracja", "Poprzedni status: CURRENT",
+                     "Przywrócony SDS: Brak", "Przechowywanie: archiwum SDS tego produktu",
+                     "Dostęp: historyczny PDF — tylko do wglądu/pobrania"):
+        assert expected in captions
+    assert not any(button.key == "invalidate-sds-sds-withdrawn" for button in app.button)
+    app.button(key="open-history-pdf-sds-withdrawn").click().run()
+    assert reads == ["history/test.pdf"]
+    assert downloads == ["Pobierz historyczny PDF"]
+
+
+def test_r3_withdrawal_requires_current_audit_and_absent_current() -> None:
+    product = make_product("p", "Maker")
+    no_current = _r3_supervisory_row(product, None)
+    invalidated = _r3_history("p", SdsDocumentStatus.INVALIDATED)
+    assert product_registry._withdrawn_without_current(no_current, (invalidated,))
+    assert not product_registry._withdrawn_without_current(
+        _r3_supervisory_row(product, "new-current"), (invalidated,))
+    assert not product_registry._withdrawn_without_current(
+        no_current, (invalidated, _r3_history("p", SdsDocumentStatus.CURRENT)))
+    assert not product_registry._withdrawn_without_current(
+        no_current, (_r3_history("p", SdsDocumentStatus.INVALIDATED, previous="ARCHIVED"),))
+    assert not product_registry._withdrawn_without_current(
+        no_current, (_r3_history("p", SdsDocumentStatus.INVALIDATED, restored="replacement"),))
+    assert not product_registry._withdrawn_without_current(no_current, ())
 
 
 @pytest.mark.parametrize("revision, expected", [("2", "2"), (None, "—")])

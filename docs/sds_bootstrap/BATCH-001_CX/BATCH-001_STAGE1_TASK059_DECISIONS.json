@@ -1,0 +1,39 @@
+{
+  "source_batch": "BATCH-001_CX",
+  "approved_by": "TASK-059 Architect decision D1/D2/D3",
+  "status": "APPROVED_BATCH_DECISION",
+  "human_approved": true,
+  "decisions": [
+    {
+      "manifest_id": "B001-P012",
+      "action": "LINK_EXISTING_PRODUCT_SKIP_EXACT_EXISTING",
+      "observed_product_name": "CLEANER PROF",
+      "target_product_name": "Cleaner prof",
+      "target_product_id": "ba2c9debc0c04ab3899ae1ce1f059e7f",
+      "manufacturer_id": "a11c4d78f64b41f89de6ec0196a9254b",
+      "existing_sds_id": "f7eb70cce36b49c7a83bfe12f8c0a8b7",
+      "source_sha256": "a1fbc73a93bdf2681f86f155f2d4be206c2bd9d8fba53569fcbaac395d677203",
+      "human_approved": true,
+      "status": "APPROVED_BATCH_DECISION",
+      "business_write": false
+    },
+    {
+      "manifest_id": "B001-P037",
+      "identity_action": "CORRECT_EXISTING_PRODUCT_MANUFACTURER",
+      "source_action": "SKIP_HISTORICAL_SOURCE",
+      "product_id": "833c0080c0a34bd1a40f5b2be18b82a6",
+      "preserve_product_name": "XBRAKE CLEANER",
+      "preserve_manufacturer_product_code": "CX80 XBRAKE CLEANER",
+      "old_manufacturer_id": "a635199aa44944bbbf31cb63808f58d3",
+      "new_manufacturer_id": "a11c4d78f64b41f89de6ec0196a9254b",
+      "source_issue_date": "2023-01-24",
+      "source_revision": "3.0",
+      "source_sha256": "9a55d855164ba2a0fd222473cd44831ac8acc1ede75c3002b10cfa3825b94556",
+      "retained_current_sds_id": "3da9cedfc58a47158694746b015bbaf2",
+      "correction_change_id": "870dd7471743493393174e47a0d5f638",
+      "human_approved": true,
+      "status": "APPROVED_BATCH_DECISION",
+      "register_historical_sds": false
+    }
+  ]
+}

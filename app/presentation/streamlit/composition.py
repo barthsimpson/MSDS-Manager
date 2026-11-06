@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.dto import (
     AddSdsRevisionInput,
+    InvalidateSdsInput,
+    SdsHistoryItem,
     AcceptSdsInput,
     AssignProductUsageLocationInput,
     AssignLegacyUsageLocationCodeInput,
@@ -69,6 +71,7 @@ from app.application.use_cases import (
     UpdateProductUsageLocation,
     AcceptSds,
     AddSdsRevision,
+    InvalidateSds,
     PrepareSdsDraft,
     RegisterBhpDecision,
     ListSupervisoryProducts,
@@ -86,6 +89,7 @@ from app.infrastructure.db.repositories import (
     SqlAlchemyUsageLocationHistoryRepository,
     SqlAlchemyUsageLocationRepository,
     SqlAlchemySdsAcceptanceRepository,
+    SqlAlchemySdsInvalidationRepository,
     SqlAlchemyBhpDecisionRepository,
     SqlAlchemyBhpDecisionQuery,
     SqlAlchemySupervisoryQuery,
@@ -358,6 +362,20 @@ class ShellComposition:
         return TransactionExecutor(self.session_factory).execute(
             lambda session: AddSdsRevision(
                 SqlAlchemySdsAcceptanceRepository(session), validator
+            ).execute(data)
+        )
+
+    def list_sds_history(self, product_id: str) -> tuple[SdsHistoryItem, ...]:
+        with self.session_factory() as session:
+            return SqlAlchemySdsInvalidationRepository(session).list_for_product(product_id)
+
+    def read_sds_history_file(self, relative_path: str) -> bytes:
+        return SdsPdfStorage(self.sds_root_path).read_sds(relative_path)
+
+    def invalidate_sds(self, data: InvalidateSdsInput) -> str:
+        return TransactionExecutor(self.session_factory).execute(
+            lambda session: InvalidateSds(
+                SqlAlchemySdsInvalidationRepository(session)
             ).execute(data)
         )
 

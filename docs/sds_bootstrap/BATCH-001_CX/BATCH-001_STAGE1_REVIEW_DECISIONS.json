@@ -1,0 +1,69 @@
+{
+  "source_batch": "BATCH-001_CX",
+  "approved_by": "TASK-058 Architect decision",
+  "manufacturer_decisions": [
+    {
+      "decision_id": "M1",
+      "observed_value": "CX 80 POLSKA AGATA NADERA DARIUSZ NADERA SPÓŁKA JAWNA",
+      "canonical_target_name": "CX80 Polska",
+      "canonical_target_id": "a11c4d78f64b41f89de6ec0196a9254b",
+      "source_batch": "BATCH-001_CX",
+      "source_manifest_ids": ["B001-P005", "B001-P014", "B001-P025"],
+      "human_approved": true,
+      "status": "APPROVED_BATCH_DECISION"
+    },
+    {
+      "decision_id": "M2",
+      "observed_value": "CX80 Polska",
+      "canonical_target_name": "CX80 Polska",
+      "canonical_target_id": "a11c4d78f64b41f89de6ec0196a9254b",
+      "source_batch": "BATCH-001_CX",
+      "source_manifest_ids": ["B001-P008", "B001-P026"],
+      "human_approved": true,
+      "status": "APPROVED_BATCH_DECISION"
+    },
+    {
+      "decision_id": "M3",
+      "observed_value": "CX80 POLSKA AGATA NADERA DARIUSZ NADERA SPÓŁKA KOMANDYTOWA (CX 80 POLSKA AGATA NADERA DARIUSZ NADERA SPÓŁKA JAWNA, CX-80 POLSKA AGATA NADERA, DARIUSZ NADERA SPÓŁKA KOMANDYTOWA)",
+      "canonical_target_name": "CX80 Polska",
+      "canonical_target_id": "a11c4d78f64b41f89de6ec0196a9254b",
+      "source_batch": "BATCH-001_CX",
+      "source_manifest_ids": ["B001-P011", "B001-P012", "B001-P031"],
+      "human_approved": true,
+      "status": "APPROVED_BATCH_DECISION"
+    }
+  ],
+  "product_decisions": [
+    {
+      "manifest_id": "B001-P023",
+      "action": "CORRECT_EXISTING_PRODUCT",
+      "product_id": "e8d4fa16679240adb1bf094578367f05",
+      "preserve_name": "CX80 Płyn Konserwująco Naprawczy",
+      "preserve_code": "0300-F0DT-500F-GJ25",
+      "old_manufacturer_id": "5a43d93166e845d597a296986f2798f7",
+      "new_manufacturer_id": "a11c4d78f64b41f89de6ec0196a9254b",
+      "human_approved": true,
+      "status": "APPROVED_BATCH_DECISION"
+    },
+    {
+      "manifest_id": "B001-P037",
+      "action": "CORRECT_EXISTING_PRODUCT",
+      "product_id": "833c0080c0a34bd1a40f5b2be18b82a6",
+      "preserve_name": "XBRAKE CLEANER",
+      "preserve_code": "CX80 XBRAKE CLEANER",
+      "old_manufacturer_id": "a635199aa44944bbbf31cb63808f58d3",
+      "new_manufacturer_id": "a11c4d78f64b41f89de6ec0196a9254b",
+      "human_approved": true,
+      "status": "APPROVED_BATCH_DECISION"
+    },
+    {
+      "manifest_id": "B001-P028",
+      "action": "CREATE_DISTINCT_PRODUCT",
+      "product_name": "XBRAKE CLEANER liquid",
+      "manufacturer_product_code": null,
+      "new_manufacturer_id": "a11c4d78f64b41f89de6ec0196a9254b",
+      "human_approved": true,
+      "status": "APPROVED_BATCH_DECISION"
+    }
+  ]
+}

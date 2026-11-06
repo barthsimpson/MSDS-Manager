@@ -1,0 +1,13 @@
+{
+  "restore_database": "msds_patch060_r2_restore_7ab529178818",
+  "createdb_exit": 0,
+  "pg_restore_exit": 0,
+  "archive_sha256_verified": true,
+  "revision": "b7d4a1f03962",
+  "table_count": 17,
+  "all_existing_table_counts_match": true,
+  "product_count": 36,
+  "sds_count": 38,
+  "target_product_sds_matches": true,
+  "test_database_retained": true
+}

@@ -1,0 +1,74 @@
+{
+  "config_source": ".env",
+  "env_file_matches_effective_db": true,
+  "host": "localhost",
+  "port": 5432,
+  "database": "msds_manager",
+  "database_matches_config": true,
+  "revision": "b7d4a1f03962",
+  "tables": [
+    "alembic_version",
+    "bhp_decisions",
+    "decision_evidence",
+    "manufacturers",
+    "physical_review_items",
+    "physical_reviews",
+    "product_history",
+    "product_identity_changes",
+    "product_usage_location_history",
+    "product_usage_locations",
+    "products",
+    "safety_profiles",
+    "sds_components",
+    "sds_documents",
+    "unit_of_measure",
+    "usage_location_history",
+    "usage_locations"
+  ],
+  "counts": {
+    "bhp_decisions": 4,
+    "decision_evidence": 4,
+    "manufacturers": 6,
+    "physical_review_items": 3,
+    "physical_reviews": 2,
+    "product_history": 42,
+    "product_identity_changes": 2,
+    "product_usage_location_history": 3,
+    "product_usage_locations": 2,
+    "products": 36,
+    "safety_profiles": 7,
+    "sds_components": 6,
+    "sds_documents": 38,
+    "unit_of_measure": 5,
+    "usage_location_history": 0,
+    "usage_locations": 3
+  },
+  "sds_invalidation_present": false,
+  "missing_sds_product": 0,
+  "products_with_multiple_current_sds": 0,
+  "status_column": {
+    "data_type": "character varying",
+    "character_maximum_length": 8
+  },
+  "status_constraint": "CHECK (((document_status)::text = ANY ((ARRAY['CURRENT'::character varying, 'ARCHIVED'::character varying])::text[])))",
+  "current_indexes": [
+    {
+      "indexname": "uq_sds_documents_one_current_per_product",
+      "indexdef": "CREATE UNIQUE INDEX uq_sds_documents_one_current_per_product ON public.sds_documents USING btree (product_id) WHERE ((document_status)::text = 'CURRENT'::text)"
+    }
+  ],
+  "other_sessions": [],
+  "other_advisory_locks": 0,
+  "role_can_create_database": true,
+  "database_size_bytes": 9844403,
+  "product": {
+    "product_id": "8385e28101e6409c8110d33febbfdc86",
+    "product_name": "SYLGARD 160 Silicone Elastomer-Part A",
+    "manufacturer_name": "DOW POLSKA SP.Z O.O.",
+    "sds_id": "760c7058df7e4bb58337fc6501a1da51",
+    "document_status": "CURRENT",
+    "revision": "5.0",
+    "relative_path": "imported/70f035ad-9390-488c-af23-d3fe5fe66d72.pdf"
+  },
+  "configured_sds_root_exists": true
+}

@@ -22,6 +22,7 @@ from .update_product_usage_location import UpdateProductUsageLocation
 from .prepare_sds_draft import PrepareSdsDraft
 from .accept_sds import AcceptSds
 from .add_sds_revision import AddSdsRevision
+from .invalidate_sds import InvalidateSds
 from .register_bhp_decision import RegisterBhpDecision
 
 __all__ = [
@@ -45,5 +46,6 @@ __all__ = [
     "PrepareSdsDraft",
     "AcceptSds",
     "AddSdsRevision",
+    "InvalidateSds",
     "RegisterBhpDecision",
 ]

@@ -6,6 +6,7 @@ from .bhp_decision_query import SqlAlchemyBhpDecisionQuery
 from .product import SqlAlchemyProductRepository
 from .product_history import SqlAlchemyProductHistoryRepository
 from .sds_acceptance import SqlAlchemySdsAcceptanceRepository
+from .sds_invalidation import SqlAlchemySdsInvalidationRepository
 from .product_usage_location import SqlAlchemyProductUsageLocationRepository
 from .physical_review import SqlAlchemyPhysicalReviewRepository
 from .product_usage_location_history import (
@@ -24,6 +25,7 @@ __all__ = [
     "SqlAlchemyProductHistoryRepository",
     "SqlAlchemyProductRepository",
     "SqlAlchemySdsAcceptanceRepository",
+    "SqlAlchemySdsInvalidationRepository",
     "SqlAlchemyProductUsageLocationHistoryRepository",
     "SqlAlchemyProductUsageLocationRepository",
     "SqlAlchemyPhysicalReviewRepository",

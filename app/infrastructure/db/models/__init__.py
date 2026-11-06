@@ -12,7 +12,7 @@ from .catalog import (
     UsageLocationHistoryModel,
     UsageLocationModel,
 )
-from .documents import BhpDecisionModel, DecisionEvidenceModel, SdsDocumentModel
+from .documents import BhpDecisionModel, DecisionEvidenceModel, SdsDocumentModel, SdsInvalidationModel
 from .physical_review import PhysicalReviewItemModel, PhysicalReviewModel
 from .safety import SafetyProfileModel, SdsComponentModel
 
@@ -32,6 +32,7 @@ __all__ = [
     "SafetyProfileModel",
     "SdsComponentModel",
     "SdsDocumentModel",
+    "SdsInvalidationModel",
     "UsageLocationHistoryModel",
     "UsageLocationModel",
 ]

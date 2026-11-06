@@ -27,6 +27,7 @@ from .sds import (
     SdsDraft,
     SdsSafetyProfileDraft,
 )
+from .sds_invalidation import InvalidateSdsInput, SdsHistoryItem
 from .bhp_decisions import (
     BhpDecisionHistoryItem,
     BhpDecisionProduct,
@@ -54,6 +55,8 @@ __all__ = [
     "SdsComponentDraft",
     "SdsDraft",
     "SdsSafetyProfileDraft",
+    "InvalidateSdsInput",
+    "SdsHistoryItem",
     "RegisterBhpDecisionInput",
     "RegisterBhpDecisionResult",
     "BhpDecisionProduct",
