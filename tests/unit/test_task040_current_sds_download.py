@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from streamlit.testing.v1 import AppTest
 
 from app.application.dto import ProductDetails
-from app.application.exceptions import EntityNotFoundError
+from app.application.exceptions import EntityNotFoundError, SupervisoryReadError
 from app.application.use_cases.get_current_sds_file import (
     CurrentSdsFile,
     CurrentSdsReference,
@@ -18,6 +18,7 @@ from app.application.use_cases.get_current_sds_file import (
 )
 from app.infrastructure.filesystem.sds_pdf_storage import SdsPdfStorage
 from app.infrastructure.db.repositories.current_sds_query import SqlAlchemyCurrentSdsQuery
+from app.presentation.streamlit.composition import ShellComposition, ShellInitializationError
 from tests.unit.test_product_registry_view import make_product
 
 
@@ -149,6 +150,7 @@ def _render_sds(composition, row):
         from app.presentation.streamlit.product_registry import _render_product_card
 
         current_composition.get_product_details = lambda _product_id: details
+        current_composition.list_sds_history = lambda _product_id: ()
         rows = {} if current_row is None else {details.product_id: current_row}
         _render_product_card(current_composition, details.product_id, rows)
 
@@ -202,3 +204,12 @@ def test_app_missing_current_file_has_no_download() -> None:
     assert not app.exception
     assert not app.get("download_button")
     assert any("MISSING" in item.value for item in app.info)
+
+
+def test_composition_maps_supervisory_read_error(tmp_path) -> None:
+    def failing_session_factory():
+        raise SupervisoryReadError("Ambiguous CURRENT SDS")
+
+    composition = ShellComposition(None, failing_session_factory, (), tmp_path)
+    with pytest.raises(ShellInitializationError):
+        composition.get_current_sds_file("product-1")

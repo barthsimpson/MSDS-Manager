@@ -41,6 +41,7 @@ EXPECTED_TABLES = {
     "decision_evidence",
     "safety_profiles",
     "sds_components",
+    "sds_invalidation",
 }
 
 
@@ -73,6 +74,7 @@ def test_every_table_has_the_expected_primary_key() -> None:
         "decision_evidence": {"evidence_id"},
         "safety_profiles": {"sds_id"},
         "sds_components": {"component_id"},
+        "sds_invalidation": {"invalidation_id"},
     }
 
     actual = {
