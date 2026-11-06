@@ -62,9 +62,9 @@ def seed_product_and_location(connection: Connection) -> tuple[str, str]:
         {"product_id": product_id, "manufacturer_id": manufacturer_id},
     )
     connection.execute(
-        text("INSERT INTO usage_locations (location_id, location_name, status) "
-             "VALUES (:id, 'TASK-033', 'ACTIVE')"),
-        {"id": location_id},
+        text("INSERT INTO usage_locations (location_id, location_code, location_name, status) "
+             "VALUES (:id, :code, 'TASK-033', 'ACTIVE')"),
+        {"id": location_id, "code": f"T033-{suffix[:16].upper()}"},
     )
     return product_id, location_id
 

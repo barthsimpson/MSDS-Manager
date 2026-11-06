@@ -35,7 +35,7 @@ def test_streamlit_shell_navigation_is_read_only() -> None:
     assert app.header[0].value == "Produkty"
     if rows_before == 0:
         assert app.info[0].value == "Brak produktów w rejestrze."
-    assert app.radio[0].options == [
+    sections = [
         "Produkty",
         "Dodaj SDS",
         "Decyzja BHP",
@@ -43,6 +43,11 @@ def test_streamlit_shell_navigation_is_read_only() -> None:
         "Widok nadzorczy",
         "Analizy",
     ]
+    # Labels carry a leading Material icon; the section names and order matter.
+    labels = app.radio[0].options
+    assert len(labels) == len(sections)
+    assert all(label.endswith(name) for label, name in zip(labels, sections))
+    assert app.radio[0].value == "Produkty"
     if rows_before == 0:
         assert app.selectbox == []
         assert app.button == []

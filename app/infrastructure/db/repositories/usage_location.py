@@ -61,20 +61,3 @@ class SqlAlchemyUsageLocationRepository(UsageLocationRepositoryPort):
             .where(UsageLocationModel.location_id == location.location_id)
             .values(status=location.status)
         )
-
-    def assign_legacy_code(self, location_id: str, location_code: str) -> bool:
-        try:
-            updated_id = self._session.scalar(
-                update(UsageLocationModel)
-                .where(
-                    UsageLocationModel.location_id == location_id,
-                    UsageLocationModel.location_code.is_(None),
-                )
-                .values(location_code=location_code)
-                .returning(UsageLocationModel.location_id)
-            )
-        except IntegrityError as error:
-            if getattr(getattr(error.orig, "diag", None), "constraint_name", None) == "uq_usage_locations_location_code":
-                raise DuplicateLocationCodeError(location_code) from error
-            raise
-        return updated_id is not None

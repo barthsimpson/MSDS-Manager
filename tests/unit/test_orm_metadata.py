@@ -253,7 +253,12 @@ def test_enum_columns_contain_only_approved_values() -> None:
 
 def test_optional_columns_are_nullable() -> None:
     optional_columns = {
-        "products": {"manufacturer_product_code", "waste_type", "waste_code"},
+        # Stage 1 import registers products before use data is known (TASK-056).
+        "products": {
+            "manufacturer_product_code", "waste_type", "waste_code",
+            "use_description", "use_restriction",
+        },
+        "product_history": {"use_description", "use_restriction"},
         "product_identity_changes": {
             "old_manufacturer_product_code", "new_manufacturer_product_code"
         },
@@ -284,8 +289,6 @@ def test_required_business_columns_are_not_nullable() -> None:
         "products": {
             "product_name",
             "manufacturer_id",
-            "use_description",
-            "use_restriction",
             "usage_status",
         },
         "sds_documents": {

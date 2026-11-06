@@ -144,9 +144,13 @@ def _row():
 
 
 def _render_sds(composition, row):
+    """Render the product card, whose action bar owns the CURRENT SDS download."""
     def render(current_composition, current_row, details):
-        from app.presentation.streamlit.product_registry import _render_details
-        _render_details(current_composition, details, current_row)
+        from app.presentation.streamlit.product_registry import _render_product_card
+
+        current_composition.get_product_details = lambda _product_id: details
+        rows = {} if current_row is None else {details.product_id: current_row}
+        _render_product_card(current_composition, details.product_id, rows)
 
     return AppTest.from_function(render, args=(composition, row, _details())).run()
 

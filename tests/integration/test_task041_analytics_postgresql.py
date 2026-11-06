@@ -135,7 +135,8 @@ def _seed(session: Session):
         (inactive, UsageLocationStatus.INACTIVE),
     ):
         session.execute(insert(UsageLocationModel).values(
-            location_id=str(location_id), location_name=str(location_id), status=status,
+            location_id=str(location_id), location_code=f"T041-{location_id.hex[:16].upper()}",
+            location_name=str(location_id), status=status,
         ))
     unit = session.scalar(select(UnitOfMeasureModel.unit_id).where(UnitOfMeasureModel.code == "kg"))
     assert unit is not None

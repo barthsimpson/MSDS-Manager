@@ -53,9 +53,9 @@ def test_active_write_history_and_inactive_read_models(connection: Connection) -
             ) VALUES (:id, 'TASK-034', :id, :id, '', '', 'ACTIVE')
         """), {"id": marker})
         session.execute(text(
-            "INSERT INTO usage_locations (location_id, location_name, status) "
-            "VALUES (:id, 'TASK-034', 'ACTIVE')"
-        ), {"id": marker})
+            "INSERT INTO usage_locations (location_id, location_code, location_name, status) "
+            "VALUES (:id, :code, 'TASK-034', 'ACTIVE')"
+        ), {"id": marker, "code": f"T034-{marker[:16].upper()}"})
 
         current = SqlAlchemyProductUsageLocationRepository(session)
         history = SqlAlchemyProductUsageLocationHistoryRepository(session)
@@ -137,9 +137,9 @@ def test_history_write_failure_rolls_back_current_state(
         ) VALUES (:id, 'TASK-035', :id, :id, '', '', 'ACTIVE')
     """), {"id": marker})
     connection.execute(text(
-        "INSERT INTO usage_locations (location_id, location_name, status) "
-        "VALUES (:id, 'TASK-035', 'ACTIVE')"
-    ), {"id": marker})
+        "INSERT INTO usage_locations (location_id, location_code, location_name, status) "
+        "VALUES (:id, :code, 'TASK-035', 'ACTIVE')"
+    ), {"id": marker, "code": f"T035-{marker[:16].upper()}"})
     if operation == "update":
         connection.execute(text("""
             INSERT INTO product_usage_locations (
