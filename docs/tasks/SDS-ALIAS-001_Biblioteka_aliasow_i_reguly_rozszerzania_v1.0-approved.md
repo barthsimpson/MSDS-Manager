@@ -256,7 +256,9 @@ Parser nie może podczas normalizacji:
 
 Źródło: `T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf`.
 
-Poniższe wpisy są zatwierdzonym seedem obserwacji biblioteki. Ich użycie w runtime nadal wymaga przejścia cyklu APPROVED → test regresyjny → ACTIVE.
+Poniższe wpisy były seedem obserwacji CANDIDATE. TASK-062-R2 (decyzja Architekta z 2026-11-10) zatwierdza tylko wskazane niżej etykiety i ograniczone reguły wiązania. Bieżący status każdego rekordu jest podany jawnie; wersjonowany katalog wykonawczy `config/sds_aliases.json` ma te same identyfikatory i statusy. Wpisy przeszły kolejno CANDIDATE → APPROVED → regresja 7/7 PASS na oryginalnych OPEX i B002-01..04 → ACTIVE. Każdy alias ma pozytywny test rzeczywistego źródła; szczegóły zapisuje `docs/task_reports/TASK-062_R2_REPORT.md`.
+
+Odczyt kodpunktów w R2 sprostował uwagę z R1 o glifie `�`: w oryginalnej warstwie tekstowej nazw OPEX i SYLGARD występują odpowiednio `®` (U+00AE) i `™` (U+2122). Matcher zachowuje je dosłownie. Rzeczywisty U+FFFD pozostaje `UNREADABLE` i nie podlega cichej naprawie.
 
 ### A-001 — nazwa produktu
 
@@ -268,7 +270,9 @@ canonical_section: "1.1"
 role: PRODUCT_NAME
 alias_text: "Nazwa produktu"
 language: pl
-status: CANDIDATE
+status: ACTIVE
+approved_at: "2026-11-10"
+binding_rule: "Wyłącznie 1.1, wartość po etykiecie w tym samym wierszu; uszkodzony glif -> UNREADABLE/REVIEW, bez automatycznej korekty."
 source_document: "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
 source_page: 1
 source_location: "Sekcja 1.1"
@@ -285,7 +289,9 @@ canonical_section: "1.1"
 role: PRODUCT_CODE
 alias_text: "Kod produktu"
 language: pl
-status: CANDIDATE
+status: ACTIVE
+approved_at: "2026-11-10"
+binding_rule: "Wyłącznie 1.1, wartość po etykiecie w tym samym wierszu; brak -> NOT_FOUND, bez wnioskowania z nagłówka/UFI/1.2."
 source_document: "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
 source_page: 1
 source_location: "Sekcja 1.1"
@@ -302,7 +308,9 @@ canonical_section: "1.3"
 role: MANUFACTURER_EXPORTER
 alias_text: "Mfg. in U.S.A and exported by"
 language: en
-status: CANDIDATE
+status: ACTIVE
+approved_at: "2026-11-10"
+binding_rule: "Wyłącznie 1.3; nazwa w następnym wierszu bez adresu, rola MANUFACTURER_EXPORTER."
 source_document: "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
 source_page: 1
 source_location: "Sekcja 1.3"
@@ -319,7 +327,9 @@ canonical_section: "1.3"
 role: EU_REPRESENTATIVE
 alias_text: "EU Only Representative"
 language: en
-status: CANDIDATE
+status: ACTIVE
+approved_at: "2026-11-10"
+binding_rule: "Wyłącznie 1.3; nazwa po etykiecie w tym samym wierszu, rola EU_REPRESENTATIVE."
 source_document: "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
 source_page: 1
 source_location: "Sekcja 1.3"
@@ -336,7 +346,9 @@ canonical_section: null
 role: SDS_ISSUE_OR_UPDATE_DATE
 alias_text: "Data wydania/Data aktualizacji"
 language: pl
-status: CANDIDATE
+status: ACTIVE
+approved_at: "2026-11-10"
+binding_rule: "Stopka właściwej karty: data po tej etykiecie przed Data poprzedniego; polski miesiąc -> ISO, porównanie s. 1 i 25."
 source_document: "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
 source_page: "1, 25"
 source_location: "Stopka"
@@ -353,11 +365,70 @@ canonical_section: null
 role: SDS_REVISION
 alias_text: "Wersja"
 language: pl
-status: CANDIDATE
+status: ACTIVE
+approved_at: "2026-11-10"
+binding_rule: "Wersja po etykiecie w nagłówku/stopce właściwej karty; numer strony nie jest rewizją."
 source_document: "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
 source_page: "1, 25"
 source_location: "Stopka"
 manufacturer_family: "Sherwin-Williams / OPEX"
+```
+
+---
+
+## 9a. TASK-062-R2 — warianty SYLGARD
+
+Poniższe aliasy są zatwierdzone przez Architekta wyłącznie z podanymi ograniczeniami. Źródła to cztery oryginalne PDF BATCH-002, s. 1; dowody i SHA-256 są w `TASK-062_R1_REPORT.md`. Zgoda nie oznacza automatycznego uznania DOW POLSKA za producenta.
+
+```yaml
+alias_id: A-007
+alias_type: FIELD_ROLE_ALIAS
+canonical_id: SDS_01_01_PRODUCT_IDENTIFIER
+canonical_section: "1.1"
+role: PRODUCT_NAME
+alias_text: "Nazwa wyrobu"
+language: pl
+status: ACTIVE
+source_document: "Sylgard 160 A rew. 5.0 (2021.10.28).pdf"
+source_page: 1
+source_location: "Sekcja 1.1; B002-01..04"
+manufacturer_family: "SYLGARD"
+approved_at: "2026-11-10"
+binding_rule: "Wartość po etykiecie w 1.1; Part A/B tylko z treści; uszkodzony glif -> UNREADABLE/REVIEW."
+```
+
+```yaml
+alias_id: A-008
+alias_type: FIELD_ROLE_ALIAS
+canonical_id: SDS_DOCUMENT_METADATA
+canonical_section: null
+role: SDS_ISSUE_OR_UPDATE_DATE
+alias_text: "Aktualizacja"
+language: pl
+status: ACTIVE
+source_document: "Sylgard 160 A rew. 5.0 (2021.10.28).pdf"
+source_page: 1
+source_location: "Nagłówek właściwej karty; B002-01..04"
+manufacturer_family: "SYLGARD"
+approved_at: "2026-11-10"
+binding_rule: "Bieżąca data po etykiecie w nagłówku, YYYY/MM/DD -> ISO; bez daty ostatniego wydania i bez nazwy pliku."
+```
+
+```yaml
+alias_id: A-009
+alias_type: FIELD_ROLE_ALIAS
+canonical_id: SDS_01_03_SUPPLIER_DETAILS
+canonical_section: "1.3"
+role: SUPPLIER
+alias_text: "IDENTYFIKACJA FIRMY"
+language: pl
+status: ACTIVE
+source_document: "Sylgard 160 A rew. 5.0 (2021.10.28).pdf"
+source_page: 1
+source_location: "Sekcja 1.3 pod Dane dotyczące dostawcy karty charakterystyki; B002-01..04"
+manufacturer_family: "SYLGARD"
+approved_at: "2026-11-10"
+binding_rule: "Tylko w kontekście dostawcy 1.3; pierwszy wiersz nazwy po etykiecie, przed adresem; rola SUPPLIER, nigdy MANUFACTURER; 1.4 OPEX jest negatywnym testem."
 ```
 
 ---

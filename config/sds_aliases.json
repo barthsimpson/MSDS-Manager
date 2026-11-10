@@ -1,0 +1,53 @@
+{
+  "schema": "SDS-ALIAS-001",
+  "schema_version": "1.0",
+  "approval_source": "TASK-062-R2, decyzja Architekta z 2026-11-10",
+  "regression": "2026-11-10: 7 passed; oryginalny OPEX s. 1/25 i B002-01..04 s. 1; testy negatywne",
+  "aliases": [
+    {
+      "alias_id": "A-001", "alias_text": "Nazwa produktu", "canonical_field": "product.product_name",
+      "canonical_section": "1.1", "role": "PRODUCT_NAME", "location": "SECTION",
+      "binding": "same_line", "status": "ACTIVE", "source_document": "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
+    },
+    {
+      "alias_id": "A-002", "alias_text": "Kod produktu", "canonical_field": "product.manufacturer_product_code",
+      "canonical_section": "1.1", "role": "PRODUCT_CODE", "location": "SECTION",
+      "binding": "same_line", "status": "ACTIVE", "source_document": "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
+    },
+    {
+      "alias_id": "A-003", "alias_text": "Mfg. in U.S.A and exported by", "canonical_field": "parties[].name",
+      "canonical_section": "1.3", "role": "MANUFACTURER_EXPORTER", "location": "SECTION",
+      "binding": "next_line", "status": "ACTIVE", "source_document": "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
+    },
+    {
+      "alias_id": "A-004", "alias_text": "EU Only Representative", "canonical_field": "parties[].name",
+      "canonical_section": "1.3", "role": "EU_REPRESENTATIVE", "location": "SECTION",
+      "binding": "same_line", "status": "ACTIVE", "source_document": "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
+    },
+    {
+      "alias_id": "A-005", "alias_text": "Data wydania/Data aktualizacji", "canonical_field": "document_metadata.issue_date",
+      "canonical_section": null, "role": "SDS_ISSUE_OR_UPDATE_DATE", "location": "FOOTER",
+      "binding": "polish_current_date", "status": "ACTIVE", "source_document": "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
+    },
+    {
+      "alias_id": "A-006", "alias_text": "Wersja", "canonical_field": "document_metadata.revision",
+      "canonical_section": null, "role": "SDS_REVISION", "location": "HEADER_OR_FOOTER",
+      "binding": "version", "status": "ACTIVE", "source_document": "T82C13_SDS_Polish_PL 25, Listopad, 2022 rew. 8.pdf"
+    },
+    {
+      "alias_id": "A-007", "alias_text": "Nazwa wyrobu", "canonical_field": "product.product_name",
+      "canonical_section": "1.1", "role": "PRODUCT_NAME", "location": "SECTION",
+      "binding": "same_line", "status": "ACTIVE", "source_document": "BATCH-002_SYLGARD B002-01..04"
+    },
+    {
+      "alias_id": "A-008", "alias_text": "Aktualizacja", "canonical_field": "document_metadata.issue_date",
+      "canonical_section": null, "role": "SDS_ISSUE_OR_UPDATE_DATE", "location": "HEADER",
+      "binding": "iso_slash_date", "status": "ACTIVE", "source_document": "BATCH-002_SYLGARD B002-01..04"
+    },
+    {
+      "alias_id": "A-009", "alias_text": "IDENTYFIKACJA FIRMY", "canonical_field": "parties[].name",
+      "canonical_section": "1.3", "role": "SUPPLIER", "location": "SECTION",
+      "binding": "supplier_next_line", "status": "ACTIVE", "source_document": "BATCH-002_SYLGARD B002-01..04"
+    }
+  ]
+}
