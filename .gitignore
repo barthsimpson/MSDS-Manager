@@ -2,10 +2,13 @@
 .venv/
 __pycache__/
 .pytest_cache/
+/.pytest_tmp/
+/tmp/
 *.pyc
 *.egg-info/
 *.db
 *.sqlite
 *.sqlite3
-/data/sds/
+/data/sds/*
+!/data/sds/Paczki/
 /data/bhp_evidence/
