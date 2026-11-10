@@ -5,10 +5,10 @@
 ## Git i zakres operacji
 
 - Właściwy worktree: `C:\Users\bartosz.murawski\Projects\MSDS-Manager-git-integration-20261106`.
-- Gałąź i HEAD: `integration/main-windows-docker-20261106` / `58b8305b9cb4f5d26d164113f1877dc5c1503fa3`; tyle samo wskazuje `origin/integration/main-windows-docker-20261106` w lokalnych referencjach.
+- Branch: `integration/main-windows-docker-20261106`. Baseline before report: `58b8305b9cb4f5d26d164113f1877dc5c1503fa3`. First report commit: `2ff0033bfe185c1bd41dbb37a274e42a4c09a2c9`.
 - `main`: `018fc6535503f2e9b15c664a08cf7041cef9b2b0`, bez zmiany.
 - Zastany stan nieśledzonych `tmp/taskgit001_*` w worktree integracyjnym pozostał nietknięty. Jedynym zapisem w tym uzupełnieniu jest niniejszy raport. Nie zmieniono kodu, kontraktów, konfiguracji środowisk ani danych.
-- **Commit:** nie utworzono. **Publikacja na GitHubie:** nie wykonano push. Bez dodatniego wyniku implementacji i kontroli nie ma zmian kodu do zatwierdzenia i publikacji.
+- Publication update 2026-11-10: report commit `2ff0033bfe185c1bd41dbb37a274e42a4c09a2c9` was pushed to `origin/integration/main-windows-docker-20261106` and confirmed by `git ls-remote --heads`. This report update is recorded and published in a follow-up commit on the same branch. There is no implementation commit because the pipeline remains BLOCKED.
 - Wcześniej utworzony odrębny worktree `MSDS-Manager-task-062` z gałęzią `feature/task-062-tdr012-poc` pozostawiono bez zmian; nowa autoryzacja nie wymaga jego użycia.
 
 ## Nierozstrzygnięta blokada TDR-012
