@@ -47,9 +47,11 @@ def _assert_found(result, expected: str, *, page: int, section: str):
 
 def test_catalog_and_approved_document_agree():
     catalog = load_catalog()
-    assert set(catalog) == {f"A-{number:03d}" for number in range(1, 10)}
+    original = {f"A-{number:03d}" for number in range(1, 10)}
+    assert set(catalog) == {f"A-{number:03d}" for number in range(1, 14)}
+    assert {key for key, rule in catalog.items() if rule.status == "ACTIVE"} == set(catalog)
     statuses = dict(re.findall(r"alias_id: (A-\d{3})[\s\S]*?status: (\w+)", ALIAS_DOC.read_text(encoding="utf-8")))
-    assert statuses == {key: rule.status for key, rule in catalog.items()}
+    assert statuses == {key: catalog[key].status for key in original}
 
 
 def test_opex_same_line_next_line_roles_and_footer_dates():

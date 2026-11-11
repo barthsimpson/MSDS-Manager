@@ -100,8 +100,37 @@ def evaluate_binding(
         return empty
 
     lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if rule.binding == "section_next_line_name":
+        heading = re.compile(r"1\.1\.?\s+" + r"\s+".join(map(re.escape, rule.alias_text.split())) + r"\s*$",
+                             re.IGNORECASE)
+        candidates = []
+        for index, line in enumerate(lines):
+            if not heading.fullmatch(line):
+                continue
+            raw = lines[index + 1] if index + 1 < len(lines) else ""
+            if re.match(r"(?:1\.[2-4]\b|Numery\b|Nazwa\s+(?:produktu|wyrobu)\s*:)", raw, re.IGNORECASE):
+                continue
+            candidates.append((raw or None, line + "\n" + raw, raw))
+        return _finish_candidates(rule, candidates, page, location)
+    if rule.binding == "supplier_address_line":
+        heading = re.compile(r"1\.3\.?\s+" + r"\s+".join(map(re.escape, rule.alias_text.split())) + r"\s*$",
+                             re.IGNORECASE)
+        if not any(heading.fullmatch(line) for line in lines):
+            return empty
+        candidates = []
+        for line in lines:
+            address = re.fullmatch(r"Adres:\s*(.+)", line, re.IGNORECASE)
+            if address is None:
+                continue
+            street = re.search(r"\s+(?:ul\.|al\.|pl\.|os\.|aleja\b|ulica\b)", address.group(1), re.IGNORECASE)
+            value = address.group(1)[:street.start()].strip(" ,;") if street else None
+            short_address = line[:address.start(1) + street.end()].rstrip() if street else line
+            candidates.append((value, next(item for item in lines if heading.fullmatch(item)) + "\n" + short_address,
+                               address.group(1)))
+        return _finish_candidates(rule, candidates, page, location)
     suffix = r"\s*$" if rule.binding == "supplier_next_line" else r"\s*:\s*(.*)"
-    pattern = re.compile(r"(?<!\w)" + re.escape(rule.alias_text) + suffix, re.IGNORECASE)
+    label = r"\s+".join(map(re.escape, rule.alias_text.split()))
+    pattern = re.compile(r"(?<!\w)" + label + suffix, re.IGNORECASE)
     candidates: list[tuple[str | None, str, str]] = []
     for index, line in enumerate(lines):
         match = pattern.search(line)
@@ -120,8 +149,13 @@ def evaluate_binding(
                 raw = ""
         value = _bind_value(rule.binding, raw)
         candidates.append((value, source, raw))
+    return _finish_candidates(rule, candidates, page, location)
+
+
+def _finish_candidates(rule: AliasRule, candidates: list[tuple[str | None, str, str]],
+                       page: int, location: str) -> MatchResult:
     if not candidates:
-        return empty
+        return MatchResult(rule.alias_id, rule.canonical_field, rule.role, None, "NOT_FOUND")
     if len(candidates) != 1 or candidates[0][0] is None:
         return MatchResult(rule.alias_id, rule.canonical_field, rule.role, None, "AMBIGUOUS",
                            observed_text="\n".join(item[1] for item in candidates))
@@ -151,6 +185,14 @@ def _bind_value(binding: str, raw: str) -> str | None:
             return None
         try:
             return date.fromisoformat(raw.replace("/", "-")).isoformat()
+        except ValueError:
+            return None
+    if binding == "dmy_current_date":
+        match = re.match(r"(\d{2})/(\d{2})/(\d{4})(?=\s|$)", raw)
+        if match is None:
+            return None
+        try:
+            return date(int(match.group(3)), int(match.group(2)), int(match.group(1))).isoformat()
         except ValueError:
             return None
     if binding == "polish_current_date":

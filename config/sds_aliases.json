@@ -1,8 +1,8 @@
 {
   "schema": "SDS-ALIAS-001",
   "schema_version": "1.0",
-  "approval_source": "TASK-062-R2, decyzja Architekta z 2026-11-10",
-  "regression": "2026-11-10: 7 passed; oryginalny OPEX s. 1/25 i B002-01..04 s. 1; testy negatywne",
+  "approval_source": "TASK-062-R2 oraz TASK-062-R5, decyzje Architekta z 2026-11-10",
+  "regression": "2026-11-10: R2/R3/R5 23 passed; oryginalne OPEX, B002-01..04 i 3M 1..49; testy negatywne",
   "aliases": [
     {
       "alias_id": "A-001", "alias_text": "Nazwa produktu", "canonical_field": "product.product_name",
@@ -48,6 +48,26 @@
       "alias_id": "A-009", "alias_text": "IDENTYFIKACJA FIRMY", "canonical_field": "parties[].name",
       "canonical_section": "1.3", "role": "SUPPLIER", "location": "SECTION",
       "binding": "supplier_next_line", "status": "ACTIVE", "source_document": "BATCH-002_SYLGARD B002-01..04"
+    },
+    {
+      "alias_id": "A-010", "alias_text": "Identyfikator produktu", "canonical_field": "product.product_name",
+      "canonical_section": "1.1", "role": "PRODUCT_NAME", "location": "SECTION",
+      "binding": "section_next_line_name", "status": "ACTIVE", "source_document": "3M DP-490, TASK-062-R4, §1.1 s. 1/4/27"
+    },
+    {
+      "alias_id": "A-011", "alias_text": "Data aktualizacji", "canonical_field": "document_metadata.issue_date",
+      "canonical_section": null, "role": "SDS_ISSUE_OR_UPDATE_DATE", "location": "HEADER",
+      "binding": "dmy_current_date", "status": "ACTIVE", "source_document": "3M DP-490, TASK-062-R4, nagłówek s. 1/4/27"
+    },
+    {
+      "alias_id": "A-012", "alias_text": "Numer wersji", "canonical_field": "document_metadata.revision",
+      "canonical_section": null, "role": "SDS_REVISION", "location": "HEADER",
+      "binding": "version", "status": "ACTIVE", "source_document": "3M DP-490, TASK-062-R4, nagłówek s. 1/4/27"
+    },
+    {
+      "alias_id": "A-013", "alias_text": "Dane dotyczące dostawcy karty charakterystyki", "canonical_field": "parties[].name",
+      "canonical_section": "1.3", "role": "SUPPLIER", "location": "SECTION",
+      "binding": "supplier_address_line", "status": "ACTIVE", "source_document": "3M DP-490, TASK-062-R4, §1.3 s. 1/4/27"
     }
   ]
 }
