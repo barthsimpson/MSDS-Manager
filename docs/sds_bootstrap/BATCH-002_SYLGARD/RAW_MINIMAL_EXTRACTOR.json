@@ -1,0 +1,148 @@
+{
+  "task": "TASK-061",
+  "kind": "RAW_MINIMAL_EXTRACTOR_DIAGNOSTIC",
+  "module": "app.infrastructure.filesystem.pdf_sds_extractor.PdfSdsExtractor",
+  "not_evidence_json": true,
+  "files": [
+    {
+      "working_id": "B002-01",
+      "source_pdf": "Sylgard 160 A rew. 5.0 (2021.10.28).pdf",
+      "result": {
+        "product_name": "®™Znak towarowy The Dow Chemical Company („DOW”) lub spółek",
+        "manufacturer_product_code": "odradzane",
+        "manufacturer_name": null,
+        "use_description": null,
+        "use_restriction": null,
+        "issue_date": null,
+        "revision": "5.0",
+        "detected_language": "PL",
+        "language_valid": true,
+        "safety_profile": {
+          "product_definition": null,
+          "hazardous_classification_status": null,
+          "clp_classification_text": "Zagrożenie długotrwałe (przewlekłe) dla środowiska wodnego - Kategoria 3 - H412",
+          "signal_word": null,
+          "hazard_statements": [
+            "H412"
+          ],
+          "supplemental_hazard_statements": [],
+          "pbt_status": "NO_DATA",
+          "vpvb_status": "NO_DATA",
+          "carcinogenicity_status": "NO_DATA",
+          "germ_cell_mutagenicity_status": "NO_DATA",
+          "reproductive_toxicity_status": "NO_DATA",
+          "endocrine_section_2_status": "NO_DATA",
+          "endocrine_section_11_status": "NO_DATA",
+          "skin_sensitization_status": "NO_DATA",
+          "respiratory_sensitization_status": "NO_DATA"
+        },
+        "components": []
+      },
+      "error": null
+    },
+    {
+      "working_id": "B002-02",
+      "source_pdf": "Sylgard 160 part B rew. 5.0 (2022.22.01).pdf",
+      "result": {
+        "product_name": "®™Znak towarowy The Dow Chemical Company („DOW”) lub spółek",
+        "manufacturer_product_code": "odradzane",
+        "manufacturer_name": null,
+        "use_description": null,
+        "use_restriction": null,
+        "issue_date": null,
+        "revision": "5.0",
+        "detected_language": "PL",
+        "language_valid": true,
+        "safety_profile": {
+          "product_definition": null,
+          "hazardous_classification_status": null,
+          "clp_classification_text": "Szkodliwe działanie na rozrodczość - Kategoria 1B - H360F",
+          "signal_word": "NIEBEZPIECZEŃSTWO",
+          "hazard_statements": [],
+          "supplemental_hazard_statements": [],
+          "pbt_status": "NO_DATA",
+          "vpvb_status": "NO_DATA",
+          "carcinogenicity_status": "NO_DATA",
+          "germ_cell_mutagenicity_status": "NO_DATA",
+          "reproductive_toxicity_status": "NO_DATA",
+          "endocrine_section_2_status": "NO_DATA",
+          "endocrine_section_11_status": "NO_DATA",
+          "skin_sensitization_status": "NO_DATA",
+          "respiratory_sensitization_status": "NO_DATA"
+        },
+        "components": []
+      },
+      "error": null
+    },
+    {
+      "working_id": "B002-03",
+      "source_pdf": "sylgard-170-silicone-rew. 4.1_part-A_2021.10.26.pdf",
+      "result": {
+        "product_name": "®™Znak towarowy The Dow Chemical Company („DOW”) lub spółek",
+        "manufacturer_product_code": "odradzane",
+        "manufacturer_name": null,
+        "use_description": null,
+        "use_restriction": null,
+        "issue_date": null,
+        "revision": "4.1",
+        "detected_language": "PL",
+        "language_valid": true,
+        "safety_profile": {
+          "product_definition": null,
+          "hazardous_classification_status": null,
+          "clp_classification_text": "Zagrożenie długotrwałe (przewlekłe) dla środowiska wodnego - Kategoria 3 - H412",
+          "signal_word": null,
+          "hazard_statements": [
+            "H412"
+          ],
+          "supplemental_hazard_statements": [],
+          "pbt_status": "NO_DATA",
+          "vpvb_status": "NO_DATA",
+          "carcinogenicity_status": "NO_DATA",
+          "germ_cell_mutagenicity_status": "NO_DATA",
+          "reproductive_toxicity_status": "NO_DATA",
+          "endocrine_section_2_status": "NO_DATA",
+          "endocrine_section_11_status": "NO_DATA",
+          "skin_sensitization_status": "NO_DATA",
+          "respiratory_sensitization_status": "NO_DATA"
+        },
+        "components": []
+      },
+      "error": null
+    },
+    {
+      "working_id": "B002-04",
+      "source_pdf": "sylgard-170-silicone_rew 7_part-B_2021.10.26.pdf",
+      "result": {
+        "product_name": "®™Znak towarowy The Dow Chemical Company („DOW”) lub spółek",
+        "manufacturer_product_code": "odradzane",
+        "manufacturer_name": null,
+        "use_description": null,
+        "use_restriction": null,
+        "issue_date": null,
+        "revision": "7.0",
+        "detected_language": "PL",
+        "language_valid": true,
+        "safety_profile": {
+          "product_definition": null,
+          "hazardous_classification_status": null,
+          "clp_classification_text": "Nie jest substancją ani mieszaniną niebezpieczną w rozumieniu rozporządzenia (WE) 1272/2008.",
+          "signal_word": null,
+          "hazard_statements": [],
+          "supplemental_hazard_statements": [],
+          "pbt_status": "NO_DATA",
+          "vpvb_status": "NO_DATA",
+          "carcinogenicity_status": "NO_DATA",
+          "germ_cell_mutagenicity_status": "NO_DATA",
+          "reproductive_toxicity_status": "NO_DATA",
+          "endocrine_section_2_status": "NO_DATA",
+          "endocrine_section_11_status": "NO_DATA",
+          "skin_sensitization_status": "NO_DATA",
+          "respiratory_sensitization_status": "NO_DATA"
+        },
+        "components": []
+      },
+      "error": null
+    }
+  ]
+}
