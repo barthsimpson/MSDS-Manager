@@ -200,6 +200,167 @@ def match_named_party_roles(text: str, *, page: int) -> list[MatchResult]:
     return results
 
 
+def match_english_revision_header(text: str, *, page: int) -> tuple[MatchResult, MatchResult]:
+    """Bind a dated Revision and current Version in an English SDS header."""
+    if page < 1:
+        raise ValueError("Evidence page must be positive")
+    date_empty = MatchResult("DATED_REVISION", "document_metadata.issue_date",
+                             "SDS_ISSUE_OR_UPDATE_DATE", None, "NOT_FOUND")
+    version_empty = MatchResult("CURRENT_VERSION", "document_metadata.revision",
+                                "SDS_REVISION", None, "NOT_FOUND")
+    lines = text.splitlines()[:12]
+    if not any("safety data sheet" in line.casefold() for line in lines[:4]):
+        return date_empty, version_empty
+    matches = []
+    for line in lines:
+        found = re.search(r"\bRevision:\s*(\d{2}\.\d{2}\.\d{4})Version\s+"
+                          r"(\d+)(?:\s+\(replaces version\s+\d+\))?(?=\s|$)",
+                          line, re.IGNORECASE)
+        if found:
+            day, month, year = map(int, found.group(1).split("."))
+            matches.append((_valid_date(year, month, day), found.group(2), line.strip()))
+    if not matches:
+        return date_empty, version_empty
+    dates = {item[0] for item in matches}
+    versions = {item[1] for item in matches}
+    issue = (MatchResult(date_empty.alias_id, date_empty.canonical_field,
+                         date_empty.role, None, "AMBIGUOUS")
+             if len(dates) != 1 or None in dates else MatchResult(
+                 date_empty.alias_id, date_empty.canonical_field, date_empty.role,
+                 matches[0][0], "FOUND", ({"page": page, "section": "HEADER",
+                                         "subsection": None, "label": "Revision",
+                                         "source_text": matches[0][2]},)))
+    revision = (MatchResult(version_empty.alias_id, version_empty.canonical_field,
+                            version_empty.role, None, "AMBIGUOUS")
+                if len(versions) != 1 else MatchResult(
+                    version_empty.alias_id, version_empty.canonical_field,
+                    version_empty.role, matches[0][1], "FOUND",
+                    ({"page": page, "section": "HEADER", "subsection": None,
+                      "label": "Version", "source_text": matches[0][2]},)))
+    return issue, revision
+
+
+def match_combined_supplier(text: str, *, page: int) -> MatchResult:
+    """Preserve a Manufacturer/Supplier label while proposing only SUPPLIER."""
+    if page < 1:
+        raise ValueError("Evidence page must be positive")
+    empty = MatchResult("COMBINED_SUPPLIER", "parties[].name", "SUPPLIER",
+                        None, "NOT_FOUND")
+    lines = text.splitlines()
+    if not any(re.match(r"\s*-\s*1\.3\s+", line) for line in lines):
+        return empty
+    candidates = []
+    for index, line in enumerate(lines[:-1]):
+        label = re.fullmatch(r"\s*-\s*(Manufacturer/Supplier|Producent/Dostawcy)\s*:\s*",
+                             line, re.IGNORECASE)
+        if label is None:
+            continue
+        next_index = index + 1
+        while next_index < len(lines) and not lines[next_index].strip():
+            next_index += 1
+        if next_index >= len(lines):
+            continue
+        raw = lines[next_index]
+        name = re.split(r"\s{2,}", raw.strip(), maxsplit=1)[0].strip()
+        if (not name or re.search(r"\d|@|\b(?:Tel\.?|Fax|E-?mail|Adres)\b",
+                                  name, re.IGNORECASE)):
+            continue
+        quote = line.strip() + "\n" + raw.strip()
+        candidates.append((name, label.group(1), quote))
+    if not candidates:
+        return empty
+    if len({item[0] for item in candidates}) != 1:
+        return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                           None, "AMBIGUOUS")
+    name, label, quote = candidates[0]
+    proof = {"page": page, "section": "1", "subsection": "1.3",
+             "label": label, "source_text": quote}
+    return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                       name, "FOUND", (proof,))
+
+
+def match_compound_identity(text: str, *, page: int) -> tuple[MatchResult, MatchResult]:
+    """Bind literal product and article labels only inside the supplied §1.1."""
+    labels = (("Trade name", "Nazwa handlowa"),
+              ("Article number", "Numer artykułu"))
+    outputs = []
+    for kind, names in enumerate(labels):
+        field = "product.product_name" if kind == 0 else "product.manufacturer_product_code"
+        candidates = []
+        for line in text.splitlines():
+            match = re.fullmatch(r"\s*-\s*(" + "|".join(names) + r")\s*:\s*(.*?)\s*",
+                                 line, re.IGNORECASE)
+            if match is None:
+                continue
+            value = match.group(2).strip()
+            if not value or (kind == 1 and not re.fullmatch(r"[A-Za-z0-9.-]*\d[A-Za-z0-9.-]*", value)):
+                continue
+            candidates.append((value, match.group(1), line.strip()))
+        if len({item[0] for item in candidates}) > 1:
+            outputs.append(MatchResult("COMPOUND_IDENTITY", field, None, None, "AMBIGUOUS"))
+        elif candidates:
+            value, label, quote = candidates[0]
+            proof = {"page": page, "section": "1", "subsection": "1.1",
+                     "label": label, "source_text": quote}
+            outputs.append(MatchResult("COMPOUND_IDENTITY", field, None, value,
+                                       "FOUND", (proof,)))
+        else:
+            outputs.append(MatchResult("COMPOUND_IDENTITY", field, None, None, "NOT_FOUND"))
+    return outputs[0], outputs[1]
+
+
+def match_distributor_blocks(text: str, *, page: int) -> list[MatchResult]:
+    """Return legal-entity names and one ambiguity group for unresolved blocks."""
+    if page < 1:
+        raise ValueError("Evidence page must be positive")
+    lines = text.splitlines()
+    marker_index = next((i for i, line in enumerate(lines) if re.fullmatch(
+        r"\s*-\s*Identyfikacja dystrybutora\s*:\s*", line, re.IGNORECASE)), None)
+    if marker_index is None:
+        return []
+    marker = lines[marker_index].strip()
+    tail = []
+    for line in lines[marker_index + 1:]:
+        if re.search(r"\(ciąg dalszy|^\s*-\s*(?:1\.4|Komórka)\b", line,
+                     re.IGNORECASE):
+            break
+        tail.append(line)
+    blocks = [block.splitlines() for block in re.split(r"\n\s*\n", "\n".join(tail))
+              if block.strip()]
+    confirmed = []
+    uncertain = []
+    seen = set()
+    for block in blocks:
+        first = block[0].strip()
+        if not first or re.search(r"\d|@|\b(?:ul\.|Tel\.?|Fax|Email)\b", first,
+                                  re.IGNORECASE):
+            continue
+        legal = re.search(r"\b(?:S\.C\.|S\.A\.|GmbH|Sp\.\s*z\s+o\.\s*o\.)",
+                          first, re.IGNORECASE)
+        if legal:
+            if first.casefold() in seen:
+                continue
+            seen.add(first.casefold())
+            proof = {"page": page, "section": "1", "subsection": "1.3",
+                     "label": "Identyfikacja dystrybutora",
+                     "source_text": marker + "\n" + block[0].strip()}
+            confirmed.append(MatchResult("DISTRIBUTOR_BLOCK", "parties[].name",
+                                         "DISTRIBUTOR", first, "FOUND", (proof,)))
+        else:
+            quote_lines = [block[0].strip()]
+            if (len(block) > 1 and not re.search(r"\d|@|\b(?:ul\.|Tel\.?|Fax|Email)\b",
+                                                  block[1], re.IGNORECASE)):
+                quote_lines.append(block[1].strip())
+            uncertain.append({"page": page, "section": "1", "subsection": "1.3",
+                              "label": "Identyfikacja dystrybutora",
+                              "source_text": "\n".join(quote_lines)})
+    if uncertain:
+        confirmed.append(MatchResult("DISTRIBUTOR_BLOCK", "parties[].name",
+                                     "DISTRIBUTOR", None, "AMBIGUOUS",
+                                     tuple(uncertain)))
+    return confirmed
+
+
 def evaluate_binding(
     rule: AliasRule, text: str, *, page: int, section: str, location: str,
 ) -> MatchResult:
@@ -301,6 +462,16 @@ def evaluate_binding(
                 candidates.append((_bind_value(rule.binding, raw), line, raw))
         if candidates:
             return _finish_candidates(rule, candidates, page, location)
+    if rule.alias_id == "A-006":
+        candidates = []
+        for line in lines:
+            match = re.search(r"\bAktualizacja:\s*\d{2}\.\d{2}\.\d{4}Wersja\s+"
+                              r"(\d+(?:\.\d+)?)(?=\s|$)", line, re.IGNORECASE)
+            if match:
+                raw = match.group(1)
+                candidates.append((_bind_value(rule.binding, raw), line, raw))
+        if candidates:
+            return _finish_candidates(rule, candidates, page, location)
     suffix = r"\s*$" if rule.binding == "supplier_next_line" else r"\s*:\s*(.*)"
     label = r"\s+".join(map(re.escape, rule.alias_text.split()))
     pattern = re.compile(r"(?<!\w)" + label + suffix, re.IGNORECASE)
@@ -362,7 +533,8 @@ def _bind_value(binding: str, raw: str) -> str | None:
                 return date.fromisoformat(raw.replace("/", "-")).isoformat()
             except ValueError:
                 return None
-        dotted = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{4})", raw)
+        dotted = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{4})"
+                              r"(?:Wersja\s+\d+(?:\.\d+)?)?", raw)
         if dotted:
             day, month, year = map(int, dotted.groups())
             return _valid_date(year, month, day)
