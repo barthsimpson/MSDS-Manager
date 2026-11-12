@@ -16,7 +16,8 @@ from pathlib import Path
 
 CATALOG_PATH = Path(__file__).resolve().parents[3] / "config" / "sds_aliases.json"
 STATES = frozenset({"CANDIDATE", "APPROVED", "ACTIVE", "REJECTED"})
-PARTY_ROLES = frozenset({"MANUFACTURER_EXPORTER", "EU_REPRESENTATIVE", "SUPPLIER"})
+PARTY_ROLES = frozenset({"MANUFACTURER", "MANUFACTURER_EXPORTER", "DISTRIBUTOR",
+                         "EU_REPRESENTATIVE", "SUPPLIER"})
 POLISH_MONTHS = {
     "styczen": 1, "stycznia": 1, "luty": 2, "lutego": 2,
     "marzec": 3, "marca": 3, "kwiecien": 4, "kwietnia": 4,
@@ -116,6 +117,89 @@ def match_card_header_revision(text: str, *, page: int) -> MatchResult:
                        value, "FOUND", (proof,))
 
 
+def _edition_rows(text: str) -> list[tuple[str, str, str]]:
+    """Read only the aligned Edycja / issue / update header, never page numbers."""
+    lines = text.splitlines()[:12]
+    section = next((index for index, line in enumerate(lines) if re.match(
+        r"\s*SEKCJA\s+\d{1,2}\s*[:.]", line, re.IGNORECASE)), len(lines))
+    lines = lines[:section]
+    heading = re.compile(r"\s*Edycja\s{2,}Data wydania\s{2,}Data aktualizacji"
+                         r"(?:\s{2,}\d+\s+z\s+\d+)?\s*$", re.IGNORECASE)
+    values = re.compile(r"\s*(\d+)\s{2,}(\d{2}\.\d{2}\.\d{4})"
+                        r"\s{2,}(\d{2}\.\d{2}\.\d{4})\s*$")
+    rows = []
+    for index, line in enumerate(lines[:-1]):
+        if not heading.fullmatch(line):
+            continue
+        match = values.fullmatch(lines[index + 1])
+        if match:
+            rows.append((match.group(1), match.group(3),
+                         line.rstrip() + "\n" + lines[index + 1].rstrip()))
+    return rows
+
+
+def match_edition_revision(text: str, *, page: int) -> MatchResult:
+    """Approved contextual Edycja revision, preserving leading zeroes."""
+    if page < 1:
+        raise ValueError("Evidence page must be positive")
+    rows = _edition_rows(text)
+    empty = MatchResult("EDITION_HEADER", "document_metadata.revision",
+                        "SDS_REVISION", None, "NOT_FOUND")
+    if not rows:
+        return empty
+    if len({row[0] for row in rows}) != 1:
+        return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                           None, "AMBIGUOUS")
+    value, _, quote = rows[0]
+    proof = {"page": page, "section": "HEADER", "subsection": None,
+             "label": "Edycja", "source_text": quote}
+    return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                       value, "FOUND", (proof,))
+
+
+def match_named_party_roles(text: str, *, page: int) -> list[MatchResult]:
+    """Bind a §1.3 role marker to its named entity, including aligned continuations."""
+    if page < 1:
+        raise ValueError("Evidence page must be positive")
+    lines = text.splitlines()
+    heading = next((line for line in lines if re.fullmatch(
+        r"\s*1\.3\.?\s+Dane dotyczące dostawcy karty charakterystyki\s*:?\s*",
+        line, re.IGNORECASE)), None)
+    if heading is None:
+        return []
+    results = []
+    for index, line in enumerate(lines[:-1]):
+        marker = line.strip().casefold()
+        if marker not in {"producent", "dystrybutor"}:
+            continue
+        role = "MANUFACTURER" if marker == "producent" else "DISTRIBUTOR"
+        next_index = index + 1
+        while next_index < len(lines) and not lines[next_index].strip():
+            next_index += 1
+        if next_index >= len(lines):
+            continue
+        name_line = lines[next_index]
+        name_match = re.fullmatch(r"\s*Nazwa lub nazwa handlowa\s{2,}(.+?)\s*",
+                                  name_line, re.IGNORECASE)
+        if name_match is None:
+            continue
+        value_column = name_match.start(1)
+        fragments = [name_match.group(1).strip()]
+        quote_lines = [heading.rstrip(), line.rstrip(), name_line.rstrip()]
+        for continuation in lines[next_index + 1:]:
+            if (not continuation.strip() or
+                len(continuation) - len(continuation.lstrip()) < value_column - 2):
+                break
+            fragments.append(continuation.strip())
+            quote_lines.append(continuation.rstrip())
+        value = " ".join(fragments)
+        proof = {"page": page, "section": "1", "subsection": "1.3",
+                 "label": line.strip(), "source_text": "\n".join(quote_lines)}
+        results.append(MatchResult("NAMED_PARTY_ROLE", "parties[].name", role,
+                                   value, "FOUND", (proof,)))
+    return results
+
+
 def evaluate_binding(
     rule: AliasRule, text: str, *, page: int, section: str, location: str,
 ) -> MatchResult:
@@ -136,19 +220,29 @@ def evaluate_binding(
 
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if rule.binding == "section_next_line_name":
-        heading = re.compile(r"1\.1\.?\s+" + r"\s+".join(map(re.escape, rule.alias_text.split())) + r"\s*$",
+        heading = re.compile(r"1\.1\.?\s+" + r"\s+".join(map(re.escape, rule.alias_text.split())) + r"(?:\s{2,}(.+))?\s*$",
                              re.IGNORECASE)
         candidates = []
         for index, line in enumerate(lines):
-            if not heading.fullmatch(line):
+            match = heading.fullmatch(line)
+            if match is None:
+                continue
+            if match.group(1):
+                raw = match.group(1).strip()
+                candidates.append((None if re.search(r"\s{2,}", raw) else raw,
+                                   line, raw))
                 continue
             raw = lines[index + 1] if index + 1 < len(lines) else ""
             if re.match(r"(?:1\.[2-4]\b|Numery\b|Nazwa\s+(?:produktu|wyrobu)\s*:)", raw, re.IGNORECASE):
                 continue
+            named = re.fullmatch(r"Nazwa handlowa produktu\s*:\s*(.+)", raw, re.IGNORECASE)
+            if named:
+                candidates.append((named.group(1), line + "\n" + raw, raw))
+                continue
             candidates.append((raw or None, line + "\n" + raw, raw))
         return _finish_candidates(rule, candidates, page, location)
     if rule.binding == "supplier_address_line":
-        heading = re.compile(r"1\.3\.?\s+" + r"\s+".join(map(re.escape, rule.alias_text.split())) + r"\s*$",
+        heading = re.compile(r"1\.3\.?\s+" + r"\s+".join(map(re.escape, rule.alias_text.split())) + r"\s*:?\s*$",
                              re.IGNORECASE)
         headings = [index for index, line in enumerate(lines) if heading.fullmatch(line)]
         if not headings:
@@ -168,6 +262,8 @@ def evaluate_binding(
                 raw = lines[index + 1] if index + 1 < len(lines) else ""
                 if not raw:
                     continue
+                if raw.casefold() in {"producent", "dystrybutor"}:
+                    continue
                 if re.fullmatch(r"IDENTYFIKACJA\s+FIRMY", raw, re.IGNORECASE):
                     # A-009 owns this supplier block.
                     continue
@@ -182,6 +278,29 @@ def evaluate_binding(
                     continue
                 candidates.append((raw, lines[index] + "\n" + raw, raw))
         return _finish_candidates(rule, candidates, page, location)
+    if rule.alias_id == "A-011":
+        candidates = []
+        for line in lines:
+            match = re.search(r"(?<!\w)Data\s+aktualizacji\s{2,}"
+                              r"(\d{2}\.\d{2}\.\d{4})(?=\s{2,}Numer\s+wersji\b)",
+                              line, re.IGNORECASE)
+            if match:
+                raw = match.group(1)
+                candidates.append((_bind_value(rule.binding, raw), line, raw))
+        for _, raw, source in _edition_rows(text):
+            candidates.append((_bind_value(rule.binding, raw), source, raw))
+        if candidates:
+            return _finish_candidates(rule, candidates, page, location)
+    if rule.alias_id == "A-012":
+        candidates = []
+        for line in lines:
+            match = re.search(r"(?<!\w)Numer\s+wersji\s{2,}"
+                              r"(\d+(?:\.\d+)?)(?=\s|$)", line, re.IGNORECASE)
+            if match:
+                raw = match.group(1)
+                candidates.append((_bind_value(rule.binding, raw), line, raw))
+        if candidates:
+            return _finish_candidates(rule, candidates, page, location)
     suffix = r"\s*$" if rule.binding == "supplier_next_line" else r"\s*:\s*(.*)"
     label = r"\s+".join(map(re.escape, rule.alias_text.split()))
     pattern = re.compile(r"(?<!\w)" + label + suffix, re.IGNORECASE)
@@ -249,6 +368,10 @@ def _bind_value(binding: str, raw: str) -> str | None:
             return _valid_date(year, month, day)
         return None
     if binding == "dmy_current_date":
+        dotted = re.match(r"(\d{2})\.(\d{2})\.(\d{4})(?=\s|$)", raw)
+        if dotted:
+            day, month, year = map(int, dotted.groups())
+            return _valid_date(year, month, day)
         match = re.match(r"(\d{2})/(\d{2})/(\d{4})(?=\s|$)", raw)
         if match is None:
             return None

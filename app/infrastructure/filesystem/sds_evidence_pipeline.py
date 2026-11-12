@@ -13,10 +13,12 @@ from app.infrastructure.filesystem.sds_alias_matcher import (
     load_catalog,
     match_active_alias,
     match_card_header_revision,
+    match_edition_revision,
+    match_named_party_roles,
 )
 
 
-SECTION = re.compile(r"(?m)^[ \t]*SEKCJA[ \t]+(\d{1,2})[ \t]*:")
+SECTION = re.compile(r"(?m)^[ \t]*SEKCJA[ \t]+(\d{1,2})[ \t]*[:.](?!\d)")
 SUBSECTION = re.compile(r"(?m)^\s*(1\.[1-4])\.?\s+", re.IGNORECASE)
 FIELD_STATES = frozenset({"FOUND", "NOT_FOUND", "AMBIGUOUS", "UNREADABLE"})
 PARTY_ROLES = frozenset({"MANUFACTURER", "MANUFACTURER_EXPORTER", "SUPPLIER",
@@ -177,9 +179,20 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
                               for page_number in range(start, end + 1)])
     if card_revision["state"] == "FOUND":
         card_revision["evidence"] = card_revision["evidence"][:1]
+    edition_revision = _combine([match_edition_revision(pages[page_number - 1], page=page_number)
+                                 for page_number in range(start, end + 1)])
+    if edition_revision["state"] == "FOUND":
+        edition_revision["evidence"] = edition_revision["evidence"][:1]
+    named_roles = [result for page_number in range(start, end + 1)
+                   for result in match_named_party_roles(
+                       _subsection(pages[page_number - 1], "1.3"), page=page_number)]
     parties = [{"role": catalog[alias_id].role, "name": matches[alias_id]}
                for alias_id in ("A-003", "A-004", "A-009", "A-013")
                if alias_id in matches and matches[alias_id]["state"] != "NOT_FOUND"]
+    parties.extend({"role": role, "name": _combine([result for result in named_roles
+                                                     if result.role == role])}
+                   for role in ("MANUFACTURER", "DISTRIBUTOR")
+                   if any(result.role == role for result in named_roles))
     return {
         "document_key": f"DOC-{ordinal:03d}",
         "page_range": {"from": start, "to": end},
@@ -191,7 +204,7 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
         "document_metadata": {
             "issue_date": _one_field([matches["A-005"], matches["A-008"], matches.get("A-011", missing)]),
             "revision": _one_field([matches["A-006"], matches.get("A-012", missing),
-                                    card_revision]),
+                                    card_revision, edition_revision]),
         },
         "parties": parties,
         "safety_profile": {},
@@ -273,6 +286,10 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
             state = field.get("state")
             value = field.get("value")
             evidence = field.get("evidence")
+            if kind == "party" and state == "FOUND" and isinstance(value, str) and (
+                value.strip().casefold() in {"producent", "dystrybutor"}
+            ):
+                g2.append(f"{prefix}:PARTY_ROLE_WORD_AS_NAME")
             if state not in FIELD_STATES or not isinstance(evidence, list) or (
                 state == "FOUND" and (value is None or not evidence)
             ) or (state != "FOUND" and value is not None) or (
@@ -317,6 +334,20 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
                         proof not in confirmation.evidence):
                         g2.append(f"{prefix}:CARD_REVISION_EVIDENCE_MISMATCH")
                     continue
+                if kind == "revision" and proof.get("label") == "Edycja":
+                    confirmation = match_edition_revision(pages[page - 1], page=page)
+                    if (proof.get("section") != "HEADER" or
+                        confirmation.state != "FOUND" or confirmation.value != value or
+                        proof not in confirmation.evidence):
+                        g2.append(f"{prefix}:EDITION_EVIDENCE_MISMATCH")
+                    continue
+                if kind == "party" and proof.get("label") in {"Producent", "Dystrybutor"}:
+                    confirmations = match_named_party_roles(
+                        _subsection(pages[page - 1], "1.3"), page=page)
+                    if not any(result.state == "FOUND" and result.value == value and
+                               proof in result.evidence for result in confirmations):
+                        g2.append(f"{prefix}:NAMED_PARTY_EVIDENCE_MISMATCH")
+                    continue
                 rule = rules_by_label.get(proof.get("label"))
                 expected_field = "parties[].name" if kind == "party" else (
                     f"product.{kind}" if kind in {"product_name", "manufacturer_product_code"}
@@ -342,7 +373,8 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
             g3.append(f"{prefix}:INVALID_OR_DUPLICATE_ROLE")
         for party in doc["parties"]:
             if party["name"].get("state") == "FOUND" and any(
-                roles_by_label.get(proof.get("label")) != party.get("role")
+                ({"Producent": "MANUFACTURER", "Dystrybutor": "DISTRIBUTOR"}.get(
+                    proof.get("label"), roles_by_label.get(proof.get("label"))) != party.get("role"))
                 for proof in party["name"].get("evidence", [])
             ):
                 g3.append(f"{prefix}:ROLE_EVIDENCE_MISMATCH")
