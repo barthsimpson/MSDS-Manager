@@ -12,6 +12,7 @@ from app.infrastructure.filesystem.sds_alias_matcher import (
     MatchResult,
     load_catalog,
     match_active_alias,
+    match_card_header_revision,
 )
 
 
@@ -172,6 +173,10 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
     name = _one_field([matches["A-001"], matches["A-007"], matches.get("A-010", missing)])
     if name["state"] == "FOUND":
         name = {**name, "value": name["value"].replace("®", "").replace("™", "")}
+    card_revision = _combine([match_card_header_revision(pages[page_number - 1], page=page_number)
+                              for page_number in range(start, end + 1)])
+    if card_revision["state"] == "FOUND":
+        card_revision["evidence"] = card_revision["evidence"][:1]
     parties = [{"role": catalog[alias_id].role, "name": matches[alias_id]}
                for alias_id in ("A-003", "A-004", "A-009", "A-013")
                if alias_id in matches and matches[alias_id]["state"] != "NOT_FOUND"]
@@ -185,7 +190,8 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
         },
         "document_metadata": {
             "issue_date": _one_field([matches["A-005"], matches["A-008"], matches.get("A-011", missing)]),
-            "revision": _one_field([matches["A-006"], matches.get("A-012", missing)]),
+            "revision": _one_field([matches["A-006"], matches.get("A-012", missing),
+                                    card_revision]),
         },
         "parties": parties,
         "safety_profile": {},
@@ -303,6 +309,13 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
                 ):
                     if _plural_product_codes(quote, page)["state"] != "AMBIGUOUS":
                         g2.append(f"{prefix}:PLURAL_CODE_EVIDENCE_MISMATCH")
+                    continue
+                if kind == "revision" and proof.get("label") == "V":
+                    confirmation = match_card_header_revision(pages[page - 1], page=page)
+                    if (proof.get("section") != "HEADER" or
+                        confirmation.state != "FOUND" or confirmation.value != value or
+                        proof not in confirmation.evidence):
+                        g2.append(f"{prefix}:CARD_REVISION_EVIDENCE_MISMATCH")
                     continue
                 rule = rules_by_label.get(proof.get("label"))
                 expected_field = "parties[].name" if kind == "party" else (

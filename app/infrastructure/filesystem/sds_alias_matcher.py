@@ -81,6 +81,41 @@ def match_active_alias(
     return evaluate_binding(rule, text, page=page, section=section, location=location)
 
 
+def match_card_header_revision(text: str, *, page: int) -> MatchResult:
+    """Recognize a literal V revision beside the SDS card number in a page header."""
+    if page < 1:
+        raise ValueError("Evidence page must be positive")
+    empty = MatchResult("CARD_HEADER_V", "document_metadata.revision", "SDS_REVISION",
+                        None, "NOT_FOUND")
+    lines = [line.strip() for line in text.splitlines()[:12]]
+    section = re.search(r"(?i)^SEKCJA\s+\d+\s*:", "\n".join(lines), re.MULTILINE)
+    if section:
+        lines = "\n".join(lines)[:section.start()].splitlines()
+    if not any("karta charakterystyki" in line.lower() for line in lines[:4]) and not any(
+        re.search(r"\bStrona\s+\d+\s+z\s+\d+\b", line, re.IGNORECASE)
+        for line in lines[:4]
+    ):
+        return empty
+    candidates = []
+    for index, line in enumerate(lines[:-1]):
+        if not re.search(r"\bKC\s+Numer\s*:\s*\d+\b", line, re.IGNORECASE):
+            continue
+        token = lines[index + 1]
+        if re.fullmatch(r"V\d+(?:\.\d+)+", token):
+            candidates.append((token, line + "\n" + token))
+    if not candidates:
+        return empty
+    if len({value for value, _ in candidates}) != 1:
+        return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                           None, "AMBIGUOUS", observed_text="\n".join(
+                               quote for _, quote in candidates))
+    value, quote = candidates[0]
+    proof = {"page": page, "section": "HEADER", "subsection": None,
+             "label": "V", "source_text": quote}
+    return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                       value, "FOUND", (proof,))
+
+
 def evaluate_binding(
     rule: AliasRule, text: str, *, page: int, section: str, location: str,
 ) -> MatchResult:
@@ -203,12 +238,16 @@ def _bind_value(binding: str, raw: str) -> str | None:
         match = re.match(r"([0-9]+(?:\.[0-9]+)?)(?=\s|$)", raw)
         return match.group(1) if match else None
     if binding == "iso_slash_date":
-        if not re.fullmatch(r"\d{4}/\d{2}/\d{2}", raw):
-            return None
-        try:
-            return date.fromisoformat(raw.replace("/", "-")).isoformat()
-        except ValueError:
-            return None
+        if re.fullmatch(r"\d{4}/\d{2}/\d{2}", raw):
+            try:
+                return date.fromisoformat(raw.replace("/", "-")).isoformat()
+            except ValueError:
+                return None
+        dotted = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{4})", raw)
+        if dotted:
+            day, month, year = map(int, dotted.groups())
+            return _valid_date(year, month, day)
+        return None
     if binding == "dmy_current_date":
         match = re.match(r"(\d{2})/(\d{2})/(\d{4})(?=\s|$)", raw)
         if match is None:
