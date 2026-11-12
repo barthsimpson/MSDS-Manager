@@ -18,12 +18,16 @@ from app.infrastructure.filesystem.sds_alias_matcher import (
     match_distributor_blocks,
     match_edition_revision,
     match_english_revision_header,
+    match_first_issue_header,
+    match_labeled_supplier,
     match_named_party_roles,
+    match_paste_header,
+    match_update_timeline,
 )
 
 
 SECTION = re.compile(r"(?m)^[ \t]*[*-]?[ \t]*(?:SEKCJA|SECTION)[ \t]+(\d{1,2})[ \t]*[:.](?!\d)")
-SUBSECTION = re.compile(r"(?m)^[ \t]*-?[ \t]*(1\.[1-4])\.?[ \t]+", re.IGNORECASE)
+SUBSECTION = re.compile(r"(?m)^[ \t]*-?[ \t]*(1\.[1-4]|11\.1)\.?[ \t]+", re.IGNORECASE)
 FIELD_STATES = frozenset({"FOUND", "NOT_FOUND", "AMBIGUOUS", "UNREADABLE"})
 PARTY_ROLES = frozenset({"MANUFACTURER", "MANUFACTURER_EXPORTER", "SUPPLIER",
                          "IMPORTER", "DISTRIBUTOR", "EU_REPRESENTATIVE", "OTHER"})
@@ -78,13 +82,14 @@ def _ranges(pages: list[str]) -> list[tuple[int, int]]:
 def _subsection(text: str, key: str) -> str:
     headings = list(SUBSECTION.finditer(text))
     for index, heading in enumerate(headings):
-        if heading.group(1) == key:
+        if heading.group(1) == key or (key == "1.1" and heading.group(1) == "11.1"):
             preceding_sections = list(SECTION.finditer(text, 0, heading.start()))
             if preceding_sections:
                 if preceding_sections[-1].group(1) != "1":
                     continue
-            elif not re.search(r"IDENTYFIKACJA\s+SUBSTANCJI/MIESZANINY\s+I\s+IDENTYFIKACJA"
-                               r"\s+PRZEDSIĘBIORSTWA", text[:heading.start()], re.IGNORECASE):
+            elif not (re.search(r"IDENTYFIKACJA\s+SUBSTANCJI/MIESZANINY\s+I\s+IDENTYFIKACJA"
+                                r"\s+PRZEDSIĘBIORSTWA", text[:heading.start()], re.IGNORECASE)
+                      or (key == "1.3" and re.search(r"(?m)^\s*1\.2\.?\s+", text[:heading.start()]))):
                 continue
             end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
             next_section = SECTION.search(text, heading.end())
@@ -132,6 +137,18 @@ def _one_field(fields: list[dict]) -> dict:
     if any(field["state"] == "UNREADABLE" for field in fields):
         return {"value": None, "state": "UNREADABLE", "evidence": []}
     return {"value": None, "state": "NOT_FOUND", "evidence": []}
+
+
+def _verified_compact_name(field: dict, pages: list[str], start: int, end: int) -> dict:
+    if field["state"] != "FOUND" or not isinstance(field["value"], str):
+        return field
+    compact = re.sub(r"\s{3,}(?=-[A-Za-z0-9])", "", field["value"])
+    if compact == field["value"]:
+        return field
+    if any(re.search(r"(?m)^\s*" + re.escape(compact) + r"\s*$", pages[page - 1])
+           for page in range(start, end + 1)):
+        return {**field, "value": compact}
+    return field
 
 
 def _plural_product_codes(section: str, page: int) -> dict:
@@ -188,6 +205,7 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
                        matches.get("A-010", missing), compound_name])
     if name["state"] == "FOUND":
         name = {**name, "value": name["value"].replace("®", "").replace("™", "")}
+        name = _verified_compact_name(name, pages, start, end)
     card_revision = _combine([match_card_header_revision(pages[page_number - 1], page=page_number)
                               for page_number in range(start, end + 1)])
     if card_revision["state"] == "FOUND":
@@ -201,6 +219,19 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
     english_date = _combine([pair[0] for pair in english_headers])
     english_revision = _combine([pair[1] for pair in english_headers])
     for field in (english_date, english_revision):
+        if field["state"] == "FOUND":
+            field["evidence"] = field["evidence"][:1]
+    paste_headers = [match_paste_header(pages[page_number - 1], page=page_number)
+                     for page_number in range(start, end + 1)]
+    paste_date = _combine([pair[0] for pair in paste_headers])
+    paste_revision = _combine([pair[1] for pair in paste_headers])
+    timeline_date = _combine([match_update_timeline(pages[page_number - 1], page=page_number)
+                              for page_number in range(start, end + 1)])
+    first_issue = [match_first_issue_header(pages[page_number - 1], page=page_number)
+                   for page_number in range(start, end + 1)]
+    first_issue_date = _combine([pair[0] for pair in first_issue])
+    first_issue_revision = _combine([pair[1] for pair in first_issue])
+    for field in (paste_date, paste_revision, timeline_date, first_issue_date, first_issue_revision):
         if field["state"] == "FOUND":
             field["evidence"] = field["evidence"][:1]
     named_roles = [result for page_number in range(start, end + 1)
@@ -218,6 +249,13 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
         for page_number in range(start, end + 1)])
     if combined_supplier["state"] != "NOT_FOUND":
         parties.append({"role": "SUPPLIER", "name": combined_supplier})
+    labeled_supplier = _combine([match_labeled_supplier(
+        _subsection(pages[page_number - 1], "1.3"), page=page_number)
+        for page_number in range(start, end + 1)])
+    if labeled_supplier["state"] == "FOUND":
+        parties = [party for party in parties if not (
+            party["role"] == "SUPPLIER" and party["name"]["state"] == "AMBIGUOUS")]
+        parties.append({"role": "SUPPLIER", "name": labeled_supplier})
     distributor_results = [result for page_number in range(start, end + 1)
                            for result in match_distributor_blocks(
                                _subsection(pages[page_number - 1], "1.3"), page=page_number)]
@@ -239,9 +277,11 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
             "manufacturer_product_code": code,
         },
         "document_metadata": {
-            "issue_date": _one_field([matches["A-005"], matches["A-008"], matches.get("A-011", missing), english_date]),
+            "issue_date": _one_field([matches["A-005"], matches["A-008"], matches.get("A-011", missing),
+                                      english_date, paste_date, timeline_date, first_issue_date]),
             "revision": _one_field([matches["A-006"], matches.get("A-012", missing),
-                                    card_revision, edition_revision, english_revision]),
+                                    card_revision, edition_revision, english_revision,
+                                    paste_revision, first_issue_revision]),
         },
         "parties": parties,
         "safety_profile": {},
@@ -266,6 +306,26 @@ def _source_language(pages: list[str]) -> str:
     if polish == english:
         return "und"
     return "pl" if polish else "en"
+
+
+def _source_name_discrepancy(doc: dict, pages: list[str]) -> bool:
+    """Flag, without resolving, a conflicting product footer on a group SDS."""
+    name = doc["product"]["product_name"]
+    if name["state"] != "FOUND" or not any(
+        "NAZWA HANDLOWA:" in proof.get("source_text", "") for proof in name["evidence"]
+    ):
+        return False
+
+    def comparable(value: str) -> str:
+        return re.sub(r"\s*/\s*", "/", " ".join(value.split())).casefold()
+
+    for page_number in range(doc["page_range"]["from"], doc["page_range"]["to"] + 1):
+        for line in pages[page_number - 1].splitlines()[-8:]:
+            match = re.match(r"\s*Produkt:\s*(.+?)\s+strona\s+\d+\s+z\s+\d+\s*$",
+                             line, re.IGNORECASE)
+            if match and comparable(match.group(1)) != comparable(name["value"]):
+                return True
+    return False
 
 
 def validate_evidence(draft: dict, pages: list[str]) -> dict:
@@ -336,6 +396,10 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
                 value.strip().casefold() in {"producent", "dystrybutor"}
             ):
                 g2.append(f"{prefix}:PARTY_ROLE_WORD_AS_NAME")
+            if kind == "product_name" and state == "FOUND" and isinstance(value, str) and (
+                value.strip().casefold() in {"nazwa handlowa", "nazwa handlowa:"}
+            ):
+                g2.append(f"{prefix}:PRODUCT_LABEL_AS_NAME")
             if state not in FIELD_STATES or not isinstance(evidence, list) or (
                 state == "FOUND" and (value is None or not evidence)
             ) or (state != "FOUND" and value is not None) or (
@@ -397,6 +461,29 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
                         proof not in confirmation.evidence):
                         g2.append(f"{prefix}:EDITION_EVIDENCE_MISMATCH")
                     continue
+                if proof.get("label") in {"Wydanie", "wersja"} and kind == "revision":
+                    confirmation = match_paste_header(pages[page - 1], page=page)[1]
+                    if (confirmation.state != "FOUND" or confirmation.value != value or
+                        proof not in confirmation.evidence):
+                        g2.append(f"{prefix}:PASTE_REVISION_EVIDENCE_MISMATCH")
+                    continue
+                if proof.get("label") == "Data sporządzenia/aktualizacji" and kind == "issue_date":
+                    confirmation = match_update_timeline(pages[page - 1], page=page)
+                    if (confirmation.state != "FOUND" or confirmation.value != value or
+                        proof not in confirmation.evidence):
+                        g2.append(f"{prefix}:TIMELINE_EVIDENCE_MISMATCH")
+                    continue
+                if (proof.get("label") == "Data opracowania" or
+                    (proof.get("label") == "Wersja" and
+                     re.search(r"\bWersja\s+1\.0(?:\s|$)", quote, re.IGNORECASE))) and kind in {
+                         "issue_date", "revision"
+                     }:
+                    confirmation = match_first_issue_header(pages[page - 1], page=page)[
+                        0 if kind == "issue_date" else 1]
+                    if (confirmation.state != "FOUND" or confirmation.value != value or
+                        proof not in confirmation.evidence):
+                        g2.append(f"{prefix}:FIRST_ISSUE_EVIDENCE_MISMATCH")
+                    continue
                 if proof.get("label") in {"Revision", "Version"} and kind in {"issue_date", "revision"}:
                     confirmations = match_english_revision_header(pages[page - 1], page=page)
                     confirmation = confirmations[0 if kind == "issue_date" else 1]
@@ -413,6 +500,13 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
                     if (confirmation.state != "FOUND" or confirmation.value != value or
                         proof not in confirmation.evidence):
                         g2.append(f"{prefix}:COMBINED_SUPPLIER_EVIDENCE_MISMATCH")
+                    continue
+                if kind == "party" and proof.get("label") in {"Dostawca", "Nazwa i adres"}:
+                    confirmation = match_labeled_supplier(
+                        _subsection(pages[page - 1], "1.3"), page=page)
+                    if (confirmation.state != "FOUND" or confirmation.value != value or
+                        proof not in confirmation.evidence):
+                        g2.append(f"{prefix}:LABELED_SUPPLIER_EVIDENCE_MISMATCH")
                     continue
                 if kind == "party" and proof.get("label") == "Identyfikacja dystrybutora":
                     confirmations = match_distributor_blocks(
@@ -446,6 +540,9 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
                     confirmed_value = confirmation.value
                     if kind == "product_name" and isinstance(confirmed_value, str):
                         confirmed_value = confirmed_value.replace("®", "").replace("™", "")
+                        confirmed_value = _verified_compact_name({
+                            "value": confirmed_value, "state": "FOUND", "evidence": []},
+                            pages, expected_start, end)["value"]
                     if confirmation.state != "FOUND" or confirmed_value != value:
                         g2.append(f"{prefix}:VALUE_NOT_SUPPORTED")
         roles = [party.get("role") for party in doc["parties"]]
@@ -458,6 +555,7 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
             if party["name"].get("state") == "FOUND" and any(
                 ({"Producent": "MANUFACTURER", "Dystrybutor": "DISTRIBUTOR",
                   "Manufacturer/Supplier": "SUPPLIER", "Producent/Dostawcy": "SUPPLIER",
+                  "Dostawca": "SUPPLIER", "Nazwa i adres": "SUPPLIER",
                   "Identyfikacja dystrybutora": "DISTRIBUTOR"}.get(
                     proof.get("label"), roles_by_label.get(proof.get("label"))) != party.get("role"))
                 for proof in party["name"].get("evidence", [])
@@ -509,7 +607,9 @@ def extract_evidence(path: Path) -> tuple[dict, dict]:
             "issues": [{"code": issue, "message": issue.replace("_", " ")}
                        for issue in gates["G3"]["issues"] if doc["document_key"] in issue],
         }
-    draft["extraction_report"]["warnings"] = gates["G3"]["issues"] + (
-        ["SOURCE_PARTIALLY_READABLE"] if readability == "PARTIALLY_READABLE" else [])
+    draft["extraction_report"]["warnings"] = gates["G3"]["issues"] + [
+        f"{doc['document_key']}:SOURCE_PRODUCT_NAME_DISCREPANCY_REQUIRES_HUMAN_REVIEW"
+        for doc in draft["documents"] if _source_name_discrepancy(doc, pages)
+    ] + (["SOURCE_PARTIALLY_READABLE"] if readability == "PARTIALLY_READABLE" else [])
     draft["extraction_report"]["errors"] = gates["G1"]["issues"] + gates["G2"]["issues"]
     return draft, gates

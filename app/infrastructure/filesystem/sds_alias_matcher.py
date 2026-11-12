@@ -309,6 +309,144 @@ def match_compound_identity(text: str, *, page: int) -> tuple[MatchResult, Match
     return outputs[0], outputs[1]
 
 
+def match_paste_header(text: str, *, page: int) -> tuple[MatchResult, MatchResult]:
+    """Read explicit ISO update, Wydanie, and full Polish version in a card header."""
+    lines = text.splitlines()[:12]
+    empty_date = MatchResult("PASTE_HEADER", "document_metadata.issue_date",
+                             "SDS_ISSUE_OR_UPDATE_DATE", None, "NOT_FOUND")
+    empty_revision = MatchResult("PASTE_HEADER", "document_metadata.revision",
+                                 "SDS_REVISION", None, "NOT_FOUND")
+    if not any("karta charakterystyki" in line.casefold() for line in lines[:5]):
+        return empty_date, empty_revision
+    dates, revisions = [], []
+    for line in lines:
+        current = re.search(r"\bData aktualizacji:\s*(\d{4}-\d{2}-\d{2})(?=\s|$)", line, re.IGNORECASE)
+        if current:
+            try:
+                value = date.fromisoformat(current.group(1)).isoformat()
+            except ValueError:
+                value = None
+            dates.append((value, line.strip(), "Data aktualizacji"))
+        edition = re.search(r"\bWydanie\s+(\d+)(?=\s|$)", line, re.IGNORECASE)
+        version = re.search(r"\bwersja:\s*(\d+(?:\.\d+)?/PL)(?=\s|$)", line, re.IGNORECASE)
+        if edition:
+            revisions.append((edition.group(1), line.strip(), "Wydanie"))
+        if version:
+            revisions.append((version.group(1), line.strip(), "wersja"))
+
+    def result(empty: MatchResult, items: list[tuple[str | None, str, str]]) -> MatchResult:
+        if not items:
+            return empty
+        if len({item[0] for item in items}) != 1 or items[0][0] is None:
+            return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                               None, "AMBIGUOUS")
+        value, quote, label = items[0]
+        proof = {"page": page, "section": "HEADER", "subsection": None,
+                 "label": label, "source_text": quote}
+        return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                           value, "FOUND", (proof,))
+
+    return result(empty_date, dates), result(empty_revision, revisions)
+
+
+def match_update_timeline(text: str, *, page: int) -> MatchResult:
+    """Use the last explicitly dated item of a labelled update chronology."""
+    empty = MatchResult("UPDATE_TIMELINE", "document_metadata.issue_date",
+                        "SDS_ISSUE_OR_UPDATE_DATE", None, "NOT_FOUND")
+    for line in text.splitlines()[:45]:
+        if not re.search(r"Data sporządzenia/aktualizacji\s*:", line, re.IGNORECASE):
+            continue
+        values = re.findall(r"(\d{2})\.(\d{2})\.(\d{4})\s*r?\.?\s*(?:\(\d+\))?", line)
+        if len(values) < 2:
+            continue
+        dates = [_valid_date(int(year), int(month), int(day)) for day, month, year in values]
+        if any(value is None for value in dates):
+            return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                               None, "AMBIGUOUS")
+        proof = {"page": page, "section": "FOOTER", "subsection": None,
+                 "label": "Data sporządzenia/aktualizacji", "source_text": line.strip()}
+        return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                           dates[-1], "FOUND", (proof,))
+    return empty
+
+
+def match_first_issue_header(text: str, *, page: int) -> tuple[MatchResult, MatchResult]:
+    """Use creation date only for a card with no update and explicit version 1.0."""
+    empty_date = MatchResult("FIRST_ISSUE", "document_metadata.issue_date",
+                             "SDS_ISSUE_OR_UPDATE_DATE", None, "NOT_FOUND")
+    empty_revision = MatchResult("FIRST_ISSUE", "document_metadata.revision",
+                                 "SDS_REVISION", None, "NOT_FOUND")
+    lines = text.splitlines()[:8]
+    if not any("karta charakterystyki" in line.casefold() for line in lines[:3]):
+        return empty_date, empty_revision
+    creation = next((i for i, line in enumerate(lines) if re.search(
+        r"\bData opracowania\s*:", line, re.IGNORECASE)), None)
+    if creation is None or creation + 1 >= len(lines):
+        return empty_date, empty_revision
+    date_match = re.search(r"\b(\d{2})\.(\d{2})\.(\d{4})\b", lines[creation + 1])
+    update = next((line for line in lines if re.search(r"\bData aktualizacji\s*:", line,
+                                                  re.IGNORECASE)), "")
+    version = next(((match, line) for line in lines
+                    if (match := re.search(r"\bWersja\s+(1\.0)(?=\s|$)",
+                                           line, re.IGNORECASE))), None)
+    if (not date_match or not re.search(r"\bData aktualizacji\s*:\s*-\s*$", update,
+                                       re.IGNORECASE) or version is None):
+        return empty_date, empty_revision
+    day, month, year = map(int, date_match.groups())
+    value = _valid_date(year, month, day)
+    if value is None:
+        return MatchResult(empty_date.alias_id, empty_date.canonical_field,
+                           empty_date.role, None, "AMBIGUOUS"), empty_revision
+    date_quote = "\n".join((lines[creation].strip(), lines[creation + 1].strip(), update.strip()))
+    date_proof = {"page": page, "section": "HEADER", "subsection": None,
+                  "label": "Data opracowania", "source_text": date_quote}
+    revision_proof = {"page": page, "section": "HEADER", "subsection": None,
+                      "label": "Wersja", "source_text": version[1].strip()}
+    return (MatchResult(empty_date.alias_id, empty_date.canonical_field,
+                        empty_date.role, value, "FOUND", (date_proof,)),
+            MatchResult(empty_revision.alias_id, empty_revision.canonical_field,
+                        empty_revision.role, version[0].group(1), "FOUND", (revision_proof,)))
+
+
+def match_labeled_supplier(text: str, *, page: int) -> MatchResult:
+    """Bind two explicit supplier layouts without promoting contacts or addresses."""
+    empty = MatchResult("LABELED_SUPPLIER", "parties[].name", "SUPPLIER",
+                        None, "NOT_FOUND")
+    lines = text.splitlines()
+    if not any(re.match(r"\s*1\.3\.?\s+Dane dotyczące dostawcy", line,
+                        re.IGNORECASE) for line in lines):
+        return empty
+    candidates = []
+    for index, line in enumerate(lines):
+        next_line = re.fullmatch(r"\s*Dostawca\s*:\s*", line, re.IGNORECASE)
+        inline = re.fullmatch(r"\s*Nazwa i adres\s*:\s{2,}(.+?)\s*", line, re.IGNORECASE)
+        if next_line and index + 1 < len(lines):
+            name = lines[index + 1].strip()
+            quote = line.strip() + "\n" + lines[index + 1].strip()
+            label = "Dostawca"
+        elif inline:
+            name = inline.group(1).strip()
+            quote = line.strip()
+            label = "Nazwa i adres"
+        else:
+            continue
+        if not re.search(r"\bSp\.\s*z\s*o\.\s*o\.", name, re.IGNORECASE):
+            continue
+        if re.search(r"@|\b(?:ul\.|Tel\.|Telefon|e-?mail)\b", name, re.IGNORECASE):
+            continue
+        candidates.append((name, label, quote))
+    if not candidates:
+        return empty
+    if len({item[0] for item in candidates}) > 1:
+        return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                           None, "AMBIGUOUS")
+    name, label, quote = candidates[0]
+    proof = {"page": page, "section": "1", "subsection": "1.3",
+             "label": label, "source_text": quote}
+    return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                       name, "FOUND", (proof,))
+
+
 def match_distributor_blocks(text: str, *, page: int) -> list[MatchResult]:
     """Return legal-entity names and one ambiguity group for unresolved blocks."""
     if page < 1:
@@ -395,6 +533,15 @@ def evaluate_binding(
                 continue
             raw = lines[index + 1] if index + 1 < len(lines) else ""
             if re.match(r"(?:1\.[2-4]\b|Numery\b|Nazwa\s+(?:produktu|wyrobu)\s*:)", raw, re.IGNORECASE):
+                continue
+            if re.fullmatch(r"Nazwa handlowa\s*:\s*", raw, re.IGNORECASE):
+                next_name = lines[index + 2] if index + 2 < len(lines) else ""
+                if not next_name or re.match(r"(?:INNE NAZWY|1\.[2-4])\s*:?", next_name,
+                                             re.IGNORECASE):
+                    candidates.append((None, line + "\n" + raw, raw))
+                else:
+                    candidates.append((next_name, line + "\n" + raw + "\n" + next_name,
+                                       next_name))
                 continue
             named = re.fullmatch(r"Nazwa handlowa produktu\s*:\s*(.+)", raw, re.IGNORECASE)
             if named:
@@ -485,6 +632,8 @@ def evaluate_binding(
             # SYLGARD header label "Aktualizacja".
             continue
         raw = match.group(1).strip() if rule.binding != "supplier_next_line" else ""
+        if rule.alias_id == "A-011" and raw == "-":
+            continue
         source = line
         if rule.binding in {"next_line", "supplier_next_line"}:
             raw = lines[index + 1] if index + 1 < len(lines) else ""
@@ -525,7 +674,7 @@ def _bind_value(binding: str, raw: str) -> str | None:
     if binding in {"same_line", "next_line", "supplier_next_line"}:
         return raw or None
     if binding == "version":
-        match = re.match(r"([0-9]+(?:\.[0-9]+)?)(?=\s|$)", raw)
+        match = re.match(r"([0-9]+(?:\.[0-9]+)?(?:/PL)?)(?=\s|$)", raw)
         return match.group(1) if match else None
     if binding == "iso_slash_date":
         if re.fullmatch(r"\d{4}/\d{2}/\d{2}", raw):
@@ -540,6 +689,12 @@ def _bind_value(binding: str, raw: str) -> str | None:
             return _valid_date(year, month, day)
         return None
     if binding == "dmy_current_date":
+        iso = re.match(r"(\d{4}-\d{2}-\d{2})(?=\s|$)", raw)
+        if iso:
+            try:
+                return date.fromisoformat(iso.group(1)).isoformat()
+            except ValueError:
+                return None
         dotted = re.match(r"(\d{2})\.(\d{2})\.(\d{4})(?=\s|$)", raw)
         if dotted:
             day, month, year = map(int, dotted.groups())
