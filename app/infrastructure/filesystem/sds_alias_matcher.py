@@ -115,7 +115,8 @@ def evaluate_binding(
     if rule.binding == "supplier_address_line":
         heading = re.compile(r"1\.3\.?\s+" + r"\s+".join(map(re.escape, rule.alias_text.split())) + r"\s*$",
                              re.IGNORECASE)
-        if not any(heading.fullmatch(line) for line in lines):
+        headings = [index for index, line in enumerate(lines) if heading.fullmatch(line)]
+        if not headings:
             return empty
         candidates = []
         for line in lines:
@@ -125,8 +126,26 @@ def evaluate_binding(
             street = re.search(r"\s+(?:ul\.|al\.|pl\.|os\.|aleja\b|ulica\b)", address.group(1), re.IGNORECASE)
             value = address.group(1)[:street.start()].strip(" ,;") if street else None
             short_address = line[:address.start(1) + street.end()].rstrip() if street else line
-            candidates.append((value, next(item for item in lines if heading.fullmatch(item)) + "\n" + short_address,
+            candidates.append((value, lines[headings[0]] + "\n" + short_address,
                                address.group(1)))
+        if not candidates:
+            for index in headings:
+                raw = lines[index + 1] if index + 1 < len(lines) else ""
+                if not raw:
+                    continue
+                if re.fullmatch(r"IDENTYFIKACJA\s+FIRMY", raw, re.IGNORECASE):
+                    # A-009 owns this supplier block.
+                    continue
+                # The next line is a supplier only when it is a name, not an
+                # address, contact detail, subsection, or copyright notice.
+                if (re.search(r"\d|[@:]|\bwww\.|\b(?:Str\.|Street\b|Straße\b)",
+                              raw, re.IGNORECASE)
+                    or re.match(r"(?:1\.[1-4]\b|SEKCJA\b|Adres\b|ul\.|al\.|pl\.|os\."
+                                r"|Phone\b|Fax\b|Tel\b|Telefon\b|Internet\b|E-?mail\b"
+                                r"|Numer\b|Copyright\b|Prawa autorskie\b)", raw, re.IGNORECASE)):
+                    candidates.append((None, lines[index] + "\n" + raw, raw))
+                    continue
+                candidates.append((raw, lines[index] + "\n" + raw, raw))
         return _finish_candidates(rule, candidates, page, location)
     suffix = r"\s*$" if rule.binding == "supplier_next_line" else r"\s*:\s*(.*)"
     label = r"\s+".join(map(re.escape, rule.alias_text.split()))
@@ -156,11 +175,14 @@ def _finish_candidates(rule: AliasRule, candidates: list[tuple[str | None, str, 
                        page: int, location: str) -> MatchResult:
     if not candidates:
         return MatchResult(rule.alias_id, rule.canonical_field, rule.role, None, "NOT_FOUND")
-    if len(candidates) != 1 or candidates[0][0] is None:
+    if (candidates[0][0] is None or
+        (len(candidates) != 1 and (rule.binding != "version" or
+                                   any(item[0] != candidates[0][0] for item in candidates[1:])))):
         return MatchResult(rule.alias_id, rule.canonical_field, rule.role, None, "AMBIGUOUS",
                            observed_text="\n".join(item[1] for item in candidates))
 
-    value, source, raw = candidates[0]
+    # For identical revision repeats, the last occurrence is the page footer.
+    value, source, raw = candidates[-1]
     if "�" in raw:
         return MatchResult(rule.alias_id, rule.canonical_field, rule.role, None, "UNREADABLE",
                            observed_text=source)
@@ -199,7 +221,30 @@ def _bind_value(binding: str, raw: str) -> str | None:
         current = re.split(r"\s+Data poprzedniego\b", raw, maxsplit=1, flags=re.IGNORECASE)[0].strip()
         match = re.fullmatch(r"(\d{1,2}),\s*([A-Za-ząćęłńóśźż]+),\s*(\d{4})", current, re.IGNORECASE)
         if match is None:
-            return None
+            numeric = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", current)
+            if numeric is None:
+                return None
+            first, second, year = map(int, numeric.groups())
+            day_month = _valid_date(year, second, first)
+            month_day = _valid_date(year, first, second)
+            if day_month is None and month_day is None:
+                return None
+            if day_month is None:
+                return month_day
+            if month_day is None:
+                return day_month
+            # A neighboring, unequivocal date can establish the source format.
+            previous = re.search(r"\bData poprzedniego(?: wydania)?\s*:\s*"
+                                 r"(\d{1,2})/(\d{1,2})/(\d{4})", raw, re.IGNORECASE)
+            if previous:
+                peer_first, peer_second, peer_year = map(int, previous.groups())
+                peer_day_month = _valid_date(peer_year, peer_second, peer_first)
+                peer_month_day = _valid_date(peer_year, peer_first, peer_second)
+                if peer_day_month is None and peer_month_day is not None:
+                    return month_day
+                if peer_month_day is None and peer_day_month is not None:
+                    return day_month
+            return day_month  # Approved Polish default when the source is silent.
         month = POLISH_MONTHS.get(match.group(2).lower().translate(POLISH_FOLD))
         if month is None:
             return None
@@ -208,3 +253,10 @@ def _bind_value(binding: str, raw: str) -> str | None:
         except ValueError:
             return None
     raise ValueError(f"Unsupported binding: {binding}")
+
+
+def _valid_date(year: int, month: int, day: int) -> str | None:
+    try:
+        return date(year, month, day).isoformat()
+    except ValueError:
+        return None
