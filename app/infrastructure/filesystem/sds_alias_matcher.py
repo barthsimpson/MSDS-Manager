@@ -200,6 +200,120 @@ def match_named_party_roles(text: str, *, page: int) -> list[MatchResult]:
     return results
 
 
+def match_inline_product_identifier(text: str, *, page: int) -> MatchResult:
+    """Read an inline §1.1 identifier without shortening its product description."""
+    empty = MatchResult("INLINE_PRODUCT_IDENTIFIER", "product.product_name",
+                        "PRODUCT_NAME", None, "NOT_FOUND")
+    candidates = []
+    for line in text.splitlines():
+        match = re.fullmatch(r"\s*1\.1\.?\s+Identyfikator produktu\s*:\s*(\S.*?)\s*",
+                             line, re.IGNORECASE)
+        if match:
+            candidates.append((match.group(1).strip(), line.strip()))
+    if not candidates:
+        return empty
+    if len({name for name, _ in candidates}) != 1:
+        return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                           None, "AMBIGUOUS")
+    name, quote = candidates[0]
+    if re.match(r"(?:Postać|Rodzaj|Typ|UFI|Inne sposoby identyfikacji)\b", name,
+                re.IGNORECASE):
+        return empty
+    proof = {"page": page, "section": "1", "subsection": "1.1",
+             "label": "Identyfikator produktu", "source_text": quote}
+    return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                       name, "FOUND", (proof,))
+
+
+def match_parallel_party_columns(text: str, *, page: int) -> list[MatchResult]:
+    """Bind a supplier and distributor to names directly beneath their columns."""
+    lines = [line.strip("\r\n") for line in text.splitlines()]
+    results = []
+    for index, line in enumerate(lines[:-1]):
+        if not re.fullmatch(r"\s*Dostawca\s{2,}Dystrybutor\s*", line,
+                            re.IGNORECASE):
+            continue
+        next_line = next((item for item in lines[index + 1:] if item.strip()), "")
+        names = re.split(r"\s{2,}", next_line.strip(), maxsplit=1)
+        if len(names) != 2 or any(not name or re.search(
+            r"\d|@|\b(?:Tel|Fax|ul\.|Dostawca|Dystrybutor)\b", name,
+            re.IGNORECASE) for name in names):
+            continue
+        for label, role, name in zip(("Dostawca", "Dystrybutor"),
+                                     ("SUPPLIER", "DISTRIBUTOR"), names):
+            proof = {"page": page, "section": "1", "subsection": "1.3",
+                     "label": label, "source_text": label + "\n" + name}
+            results.append(MatchResult("PARALLEL_PARTY_COLUMNS", "parties[].name",
+                                       role, name, "FOUND", (proof,)))
+    return results
+
+
+def match_wrapped_supplier(text: str, *, page: int) -> MatchResult:
+    """Read a supplier after a §1.3 heading wrapped before 'charakterystyki'."""
+    empty = MatchResult("WRAPPED_SUPPLIER", "parties[].name", "SUPPLIER",
+                        None, "NOT_FOUND")
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    candidates = []
+    for index, line in enumerate(lines[:-2]):
+        if not re.fullmatch(r"1\.3\.?\s+Dane dotyczące dostawcy karty", line,
+                            re.IGNORECASE):
+            continue
+        if not re.fullmatch(r"charakterystyki\s*:?", lines[index + 1], re.IGNORECASE):
+            continue
+        name = lines[index + 2]
+        if re.search(r"\d|@|:|\b(?:Kontakt|Tel|Fax|Adres|Phone)\b", name,
+                     re.IGNORECASE):
+            continue
+        quote = "\n".join(lines[index:index + 3])
+        candidates.append((name, quote))
+    if not candidates:
+        return empty
+    if len({name for name, _ in candidates}) != 1:
+        return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                           None, "AMBIGUOUS")
+    name, quote = candidates[0]
+    proof = {"page": page, "section": "1", "subsection": "1.3",
+             "label": "Dane dotyczące dostawcy karty charakterystyki",
+             "source_text": quote}
+    return MatchResult(empty.alias_id, empty.canonical_field, empty.role,
+                       name, "FOUND", (proof,))
+
+
+def match_current_update_footer(text: str, *, page: int) -> tuple[MatchResult, MatchResult]:
+    """Bind current update and version in a repeated, labeled SDS footer."""
+    date_empty = MatchResult("CURRENT_UPDATE_FOOTER", "document_metadata.issue_date",
+                             "SDS_ISSUE_OR_UPDATE_DATE", None, "NOT_FOUND")
+    version_empty = MatchResult("CURRENT_UPDATE_FOOTER", "document_metadata.revision",
+                                "SDS_REVISION", None, "NOT_FOUND")
+    lines = [line.strip() for line in text.rstrip().splitlines()[-20:] if line.strip()]
+    pattern = re.compile(
+        r"\bData sporządzenia:\s*\d{2}\.\d{2}\.\d{4}\s+"
+        r"Aktualizacja:\s*(\d{2})\.(\d{2})\.(\d{4})\s+"
+        r"Wersja:\s*(\d+(?:\.\d+)?)(?=\s)\s*"
+        r"\(zastępuje\s+\d+(?:\.\d+)?\)\s+Strona\s+\d+/\d+",
+        re.IGNORECASE,
+    )
+    matches = [(match, line) for line in lines if (match := pattern.search(line))]
+    if not matches:
+        return date_empty, version_empty
+    dates = {_valid_date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+             for m, _ in matches}
+    versions = {m.group(4) for m, _ in matches}
+    if len(dates) != 1 or None in dates or len(versions) != 1:
+        return (MatchResult(date_empty.alias_id, date_empty.canonical_field,
+                            date_empty.role, None, "AMBIGUOUS"),
+                MatchResult(version_empty.alias_id, version_empty.canonical_field,
+                            version_empty.role, None, "AMBIGUOUS"))
+    date_proof = {"page": page, "section": "FOOTER", "subsection": None,
+                  "label": "Aktualizacja", "source_text": matches[0][1]}
+    version_proof = {"page": page, "section": "FOOTER", "subsection": None,
+                     "label": "Wersja", "source_text": matches[0][1]}
+    return (MatchResult(date_empty.alias_id, date_empty.canonical_field,
+                        date_empty.role, next(iter(dates)), "FOUND", (date_proof,)),
+            MatchResult(version_empty.alias_id, version_empty.canonical_field,
+                        version_empty.role, next(iter(versions)), "FOUND", (version_proof,)))
+
+
 def match_english_revision_header(text: str, *, page: int) -> tuple[MatchResult, MatchResult]:
     """Bind a dated Revision and current Version in an English SDS header."""
     if page < 1:

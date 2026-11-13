@@ -15,14 +15,18 @@ from app.infrastructure.filesystem.sds_alias_matcher import (
     match_card_header_revision,
     match_combined_supplier,
     match_compound_identity,
+    match_current_update_footer,
     match_distributor_blocks,
     match_edition_revision,
     match_english_revision_header,
     match_first_issue_header,
+    match_inline_product_identifier,
     match_labeled_supplier,
     match_named_party_roles,
+    match_parallel_party_columns,
     match_paste_header,
     match_update_timeline,
+    match_wrapped_supplier,
 )
 
 
@@ -106,7 +110,7 @@ def _context(text: str, alias_id: str) -> list[tuple[str, str, str]]:
         return [(_subsection(text, "1.3"), "1.3", "SECTION")]
     section = SECTION.search(text)
     header = text[:section.start()] if section else "\n".join(text.splitlines()[:30])
-    footer = "\n".join(text.splitlines()[-16:])
+    footer = "\n".join(text.rstrip().splitlines()[-16:])
     if alias_id == "A-005":
         return [(footer, "FOOTER", "FOOTER")]
     if alias_id in {"A-008", "A-011", "A-012"}:
@@ -201,8 +205,12 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
     compound_code = _combine([pair[1] for pair in compound_identities])
     code = plural if plural["state"] == "AMBIGUOUS" else _one_field(
         [matches["A-002"], compound_code])
-    name = _one_field([matches["A-001"], matches["A-007"],
-                       matches.get("A-010", missing), compound_name])
+    inline_names = _combine([match_inline_product_identifier(
+        _subsection(pages[page_number - 1], "1.1"), page=page_number)
+        for page_number in range(start, end + 1)])
+    explicit_name = _one_field([matches["A-001"], matches["A-007"], compound_name])
+    name = (explicit_name if explicit_name["state"] == "FOUND" else _one_field(
+        [explicit_name, matches.get("A-010", missing), inline_names]))
     if name["state"] == "FOUND":
         name = {**name, "value": name["value"].replace("®", "").replace("™", "")}
         name = _verified_compact_name(name, pages, start, end)
@@ -231,15 +239,29 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
                    for page_number in range(start, end + 1)]
     first_issue_date = _combine([pair[0] for pair in first_issue])
     first_issue_revision = _combine([pair[1] for pair in first_issue])
+    current_footers = [match_current_update_footer(pages[page_number - 1], page=page_number)
+                       for page_number in range(start, end + 1)]
+    current_footer_date = _combine([pair[0] for pair in current_footers])
+    current_footer_revision = _combine([pair[1] for pair in current_footers])
+    for field in (current_footer_date, current_footer_revision):
+        if field["state"] == "FOUND":
+            field["evidence"] = field["evidence"][:1]
     for field in (paste_date, paste_revision, timeline_date, first_issue_date, first_issue_revision):
         if field["state"] == "FOUND":
             field["evidence"] = field["evidence"][:1]
     named_roles = [result for page_number in range(start, end + 1)
                    for result in match_named_party_roles(
                        _subsection(pages[page_number - 1], "1.3"), page=page_number)]
+    parallel = [result for page_number in range(start, end + 1)
+                for result in match_parallel_party_columns(
+                    _subsection(pages[page_number - 1], "1.3"), page=page_number)]
     parties = [{"role": catalog[alias_id].role, "name": matches[alias_id]}
                for alias_id in ("A-003", "A-004", "A-009", "A-013")
-               if alias_id in matches and matches[alias_id]["state"] != "NOT_FOUND"]
+               if alias_id in matches and matches[alias_id]["state"] != "NOT_FOUND"
+               and not (parallel and alias_id == "A-013")]
+    parties.extend({"role": result.role, "name": {
+        "value": result.value, "state": result.state, "evidence": list(result.evidence)}}
+        for result in parallel)
     parties.extend({"role": role, "name": _combine([result for result in named_roles
                                                      if result.role == role])}
                    for role in ("MANUFACTURER", "DISTRIBUTOR")
@@ -256,6 +278,11 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
         parties = [party for party in parties if not (
             party["role"] == "SUPPLIER" and party["name"]["state"] == "AMBIGUOUS")]
         parties.append({"role": "SUPPLIER", "name": labeled_supplier})
+    wrapped_supplier = _combine([match_wrapped_supplier(
+        _subsection(pages[page_number - 1], "1.3"), page=page_number)
+        for page_number in range(start, end + 1)])
+    if wrapped_supplier["state"] != "NOT_FOUND":
+        parties.append({"role": "SUPPLIER", "name": wrapped_supplier})
     distributor_results = [result for page_number in range(start, end + 1)
                            for result in match_distributor_blocks(
                                _subsection(pages[page_number - 1], "1.3"), page=page_number)]
@@ -278,10 +305,11 @@ def _document(pages: list[str], start: int, end: int, ordinal: int, catalog: dic
         },
         "document_metadata": {
             "issue_date": _one_field([matches["A-005"], matches["A-008"], matches.get("A-011", missing),
-                                      english_date, paste_date, timeline_date, first_issue_date]),
+                                      english_date, paste_date, timeline_date, first_issue_date,
+                                      current_footer_date]),
             "revision": _one_field([matches["A-006"], matches.get("A-012", missing),
                                     card_revision, edition_revision, english_revision,
-                                    paste_revision, first_issue_revision]),
+                                    paste_revision, first_issue_revision, current_footer_revision]),
         },
         "parties": parties,
         "safety_profile": {},
@@ -326,6 +354,23 @@ def _source_name_discrepancy(doc: dict, pages: list[str]) -> bool:
             if match and comparable(match.group(1)) != comparable(name["value"]):
                 return True
     return False
+
+
+def _local_contact_warnings(doc: dict, pages: list[str]) -> list[str]:
+    """Keep an unclassified national contact visible for manual review."""
+    warnings = []
+    for page_number in range(doc["page_range"]["from"], doc["page_range"]["to"] + 1):
+        section = _subsection(pages[page_number - 1], "1.3")
+        lines = [line.strip() for line in section.splitlines() if line.strip()]
+        for index, line in enumerate(lines[:-1]):
+            if line.casefold() != "kontakt krajowy":
+                continue
+            name = lines[index + 1]
+            if re.search(r"\d|@|\b(?:Phone|Fax|Tel|Adres)\b", name, re.IGNORECASE):
+                continue
+            warnings.append(f"{doc['document_key']}:UNCLASSIFIED_LOCAL_CONTACT_REQUIRES_HUMAN_REVIEW "
+                            f"s.{page_number} §1.3: {line} / {name}")
+    return warnings
 
 
 def validate_evidence(draft: dict, pages: list[str]) -> dict:
@@ -392,10 +437,11 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
             state = field.get("state")
             value = field.get("value")
             evidence = field.get("evidence")
-            if kind == "party" and state == "FOUND" and isinstance(value, str) and (
-                value.strip().casefold() in {"producent", "dystrybutor"}
+            if kind == "party" and state == "FOUND" and isinstance(value, str) and re.fullmatch(
+                r"\s*(?:(?:Producent|Dostawca|Dystrybutor)\s*)+", value, re.IGNORECASE
             ):
                 g2.append(f"{prefix}:PARTY_ROLE_WORD_AS_NAME")
+                g3.append(f"{prefix}:INVALID_PARTY_LABEL_AS_NAME")
             if kind == "product_name" and state == "FOUND" and isinstance(value, str) and (
                 value.strip().casefold() in {"nazwa handlowa", "nazwa handlowa:"}
             ):
@@ -437,6 +483,13 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
                     if _plural_product_codes(quote, page)["state"] != "AMBIGUOUS":
                         g2.append(f"{prefix}:PLURAL_CODE_EVIDENCE_MISMATCH")
                     continue
+                if kind == "product_name" and proof.get("label") == "Identyfikator produktu":
+                    confirmation = match_inline_product_identifier(
+                        _subsection(pages[page - 1], "1.1"), page=page)
+                    if confirmation.state == "FOUND" and proof in confirmation.evidence:
+                        if confirmation.value != value:
+                            g2.append(f"{prefix}:INLINE_PRODUCT_EVIDENCE_MISMATCH")
+                        continue
                 if proof.get("label") in {"Trade name", "Nazwa handlowa",
                                           "Article number", "Numer artykułu"} and kind in {
                                               "product_name", "manufacturer_product_code"}:
@@ -473,6 +526,15 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
                         proof not in confirmation.evidence):
                         g2.append(f"{prefix}:TIMELINE_EVIDENCE_MISMATCH")
                     continue
+                if (proof.get("section") == "FOOTER" and
+                    proof.get("label") in {"Aktualizacja", "Wersja"} and
+                    "Data sporządzenia:" in quote):
+                    confirmations = match_current_update_footer(pages[page - 1], page=page)
+                    confirmation = confirmations[0 if kind == "issue_date" else 1]
+                    if (confirmation.state != "FOUND" or confirmation.value != value or
+                        proof not in confirmation.evidence):
+                        g2.append(f"{prefix}:CURRENT_FOOTER_EVIDENCE_MISMATCH")
+                    continue
                 if (proof.get("label") == "Data opracowania" or
                     (proof.get("label") == "Wersja" and
                      re.search(r"\bWersja\s+1\.0(?:\s|$)", quote, re.IGNORECASE))) and kind in {
@@ -502,6 +564,12 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
                         g2.append(f"{prefix}:COMBINED_SUPPLIER_EVIDENCE_MISMATCH")
                     continue
                 if kind == "party" and proof.get("label") in {"Dostawca", "Nazwa i adres"}:
+                    confirmations = match_parallel_party_columns(
+                        _subsection(pages[page - 1], "1.3"), page=page)
+                    if any(result.role == "SUPPLIER" and
+                           result.value == value and proof in result.evidence
+                           for result in confirmations):
+                        continue
                     confirmation = match_labeled_supplier(
                         _subsection(pages[page - 1], "1.3"), page=page)
                     if (confirmation.state != "FOUND" or confirmation.value != value or
@@ -518,10 +586,19 @@ def validate_evidence(draft: dict, pages: list[str]) -> dict:
                 if kind == "party" and proof.get("label") in {"Producent", "Dystrybutor"}:
                     confirmations = match_named_party_roles(
                         _subsection(pages[page - 1], "1.3"), page=page)
+                    confirmations.extend(match_parallel_party_columns(
+                        _subsection(pages[page - 1], "1.3"), page=page))
                     if not any(result.state == "FOUND" and result.value == value and
                                proof in result.evidence for result in confirmations):
                         g2.append(f"{prefix}:NAMED_PARTY_EVIDENCE_MISMATCH")
                     continue
+                if kind == "party" and proof.get("label") == "Dane dotyczące dostawcy karty charakterystyki":
+                    confirmation = match_wrapped_supplier(
+                        _subsection(pages[page - 1], "1.3"), page=page)
+                    if confirmation.state == "FOUND" and proof in confirmation.evidence:
+                        if confirmation.value != value:
+                            g2.append(f"{prefix}:WRAPPED_SUPPLIER_EVIDENCE_MISMATCH")
+                        continue
                 rule = rules_by_label.get(proof.get("label"))
                 expected_field = "parties[].name" if kind == "party" else (
                     f"product.{kind}" if kind in {"product_name", "manufacturer_product_code"}
@@ -610,6 +687,8 @@ def extract_evidence(path: Path) -> tuple[dict, dict]:
     draft["extraction_report"]["warnings"] = gates["G3"]["issues"] + [
         f"{doc['document_key']}:SOURCE_PRODUCT_NAME_DISCREPANCY_REQUIRES_HUMAN_REVIEW"
         for doc in draft["documents"] if _source_name_discrepancy(doc, pages)
-    ] + (["SOURCE_PARTIALLY_READABLE"] if readability == "PARTIALLY_READABLE" else [])
+    ] + [warning for doc in draft["documents"]
+         for warning in _local_contact_warnings(doc, pages)] + (
+             ["SOURCE_PARTIALLY_READABLE"] if readability == "PARTIALLY_READABLE" else [])
     draft["extraction_report"]["errors"] = gates["G1"]["issues"] + gates["G2"]["issues"]
     return draft, gates
